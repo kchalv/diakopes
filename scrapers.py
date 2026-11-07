@@ -134,7 +134,7 @@ def _why(br):
 
 # ---------------------------------------------------------- Google Flights
 GF_RE = re.compile(
-    r"From ([\d,]+) euros round trip total\. (Nonstop|\d+ stops?) flights? with ([^.]+)\."
+    r"From ([\d,]+) euros round trip total\..*?(Nonstop|\d+ stops?) flights? with ([^.]+)\."
     r".*?Leaves .*? at (\d{1,2}:\d{2}\s?[AP]M) on \w+, (\w+ \d{1,2})", re.S)
 
 
@@ -215,7 +215,9 @@ def scrape_airbnb(br, q, ci, co, family):
                         reviews=int(rm.group(2).replace(",", "")) if rm else None,
                         type=ptype, bedrooms=bedrooms))
     if not res and cards.count():
-        raise RuntimeError("άγνωστη μορφή τιμής: " + cards.first.inner_text().replace("\n", " | ")[:200])
+        lines = [x for x in cards.first.inner_text().split("\n")
+                 if re.search(r"[€$£]|total|night|EUR|USD", x, re.I)]
+        raise RuntimeError("άγνωστη μορφή τιμής: " + " | ".join(lines)[:200])
     res.sort(key=lambda r: r["total"])
     return res, url
 
