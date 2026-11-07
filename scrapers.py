@@ -216,7 +216,7 @@ def scrape_airbnb(br, q, ci, co, family):
 
 
 # ----------------------------------------------------------- Google Hotels
-GH_LABEL_RE = re.compile(r"^(.*), €([\d,]+)$")
+GH_LABEL_RE = re.compile(r"^(.*?),\s*(?:€\s?([\d,. \xa0]+)|([\d,. \xa0]+)\s?€|EUR\s?([\d,.]+))\s*$")
 
 
 def scrape_ghotels(br, q, ci, co, family):
@@ -263,11 +263,15 @@ def scrape_ghotels(br, q, ci, co, family):
         if not m or m.group(1) in seen:
             continue
         seen.add(m.group(1))
-        night = float(m.group(2).replace(",", ""))
+        num = re.sub(r"[^\d]", "", next(g for g in m.groups()[1:] if g))
+        if not num:
+            continue
+        night = float(num)
         res.append(dict(name=m.group(1), link=href, per_night=night, total=night * nights,
                         rating=None, type="hotel"))
     if not res:
-        raise RuntimeError(f"καμία τιμή ({len(labels)} labels, π.χ. {[l for l, _ in labels[:4]]}) · {_why(br)}")
+        sample = [l for l, _ in labels if l and re.search(r"\d", l)][:5]
+        raise RuntimeError(f"καμία τιμή ({len(labels)} labels, με αριθμούς: {sample}) · {_why(br)}")
     res.sort(key=lambda r: r["total"])
     return res, pg.url
 
