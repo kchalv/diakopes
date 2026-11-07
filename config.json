@@ -1,0 +1,246 @@
+{
+  "family": {
+    "adults": 2,
+    "children_ages": [
+      9,
+      11,
+      13
+    ]
+  },
+  "origins": [
+    "ATH",
+    "SKG"
+  ],
+  "flight_extras_estimate": {
+    "_note": "Εκτίμηση επιπλέον κόστους πτήσης για την οικογένεια (αποσκευές + υποχρεωτικές θέσεις ενηλίκων όταν ταξιδεύουν παιδιά κάτω των 12).",
+    "checked_bags": 2,
+    "bag_price_per_leg_eur": 30,
+    "paid_seats": 2,
+    "seat_price_per_leg_eur": 6
+  },
+  "deal_rules": {
+    "_note": "Πότε μια τιμή θεωρείται πραγματική προσφορά.",
+    "min_history_samples": 4,
+    "great_ratio_vs_history": 0.8,
+    "good_ratio_vs_history": 0.92,
+    "great_ratio_vs_season": 0.75,
+    "cheap_pp_roundtrip_eur": 60,
+    "price_drop_ratio": 0.9
+  },
+  "max_family_budget_eur_default": 4000,
+  "_rss_note": "Μόνο πηγές που μπορεί να κλείσει κάποιος από Ελλάδα. Αφαιρέθηκαν HolidayPirates, TravelPirates, Travelzoo UK/DE και Urlaubspiraten (πακέτα με πτήσεις από Βρετανία/Γερμανία, σε λίρες, για πελάτες εκείνων των χωρών). Από το Fly4free κρατάμε μόνο αναχωρήσεις από Ελλάδα ή σκέτη διαμονή στην Ελλάδα.",
+  "rss_feeds": [
+    {
+      "name": "Fly4free",
+      "url": "https://www.fly4free.com/feed/"
+    }
+  ],
+  "rss_min_relevance": 2,
+  "email": {
+    "_note": "Email για ΕΞΑΙΡΕΤΙΚΕΣ προσφορές. Διευθύνσεις, server και κωδικός ΔΕΝ μπαίνουν εδώ (το αποθετήριο είναι δημόσιο): online είναι στο GitHub Secret DIAKOPES_EMAIL, τοπικά στο secrets.json → email.",
+    "enabled": true,
+    "smtp_port": 587,
+    "starttls": true,
+    "max_family_budget_eur": 4000,
+    "max_items_per_email": 15,
+    "page_url": "https://kchalv.github.io/"
+  },
+  "scrape": {
+    "_note": "Scraping με browser (Playwright). Κάθε εκτέλεση κάνει ένα μέρος των αναζητήσεων κυκλικά, ώστε όλες να ανανεώνονται περίπου μία φορά τη μέρα χωρίς υπερβολικό φόρτο στα sites.",
+    "enabled": true,
+    "gflights_origins": [
+      "ATH"
+    ],
+    "gflights_per_run": 10,
+    "gflights_routes": [
+      {
+        "iata": "HER",
+        "name": "Ηράκλειο",
+        "country": "Ελλάδα",
+        "cc": "gr"
+      },
+      {
+        "iata": "CHQ",
+        "name": "Χανιά",
+        "country": "Ελλάδα",
+        "cc": "gr"
+      },
+      {
+        "iata": "RHO",
+        "name": "Ρόδος",
+        "country": "Ελλάδα",
+        "cc": "gr"
+      },
+      {
+        "iata": "CFU",
+        "name": "Κέρκυρα",
+        "country": "Ελλάδα",
+        "cc": "gr"
+      },
+      {
+        "iata": "JNX",
+        "name": "Νάξος",
+        "country": "Ελλάδα",
+        "cc": "gr"
+      },
+      {
+        "iata": "PAS",
+        "name": "Πάρος",
+        "country": "Ελλάδα",
+        "cc": "gr"
+      },
+      {
+        "iata": "KGS",
+        "name": "Κως",
+        "country": "Ελλάδα",
+        "cc": "gr"
+      },
+      {
+        "iata": "EFL",
+        "name": "Κεφαλονιά",
+        "country": "Ελλάδα",
+        "cc": "gr"
+      },
+      {
+        "iata": "ZTH",
+        "name": "Ζάκυνθος",
+        "country": "Ελλάδα",
+        "cc": "gr"
+      },
+      {
+        "iata": "SMI",
+        "name": "Σάμος",
+        "country": "Ελλάδα",
+        "cc": "gr"
+      },
+      {
+        "iata": "FCO",
+        "name": "Ρώμη",
+        "country": "Ιταλία",
+        "cc": "it"
+      },
+      {
+        "iata": "BCN",
+        "name": "Βαρκελώνη",
+        "country": "Ισπανία",
+        "cc": "es"
+      },
+      {
+        "iata": "CDG",
+        "name": "Παρίσι (Disneyland)",
+        "country": "Γαλλία",
+        "cc": "fr"
+      },
+      {
+        "iata": "VIE",
+        "name": "Βιέννη",
+        "country": "Αυστρία",
+        "cc": "at"
+      },
+      {
+        "iata": "BUD",
+        "name": "Βουδαπέστη",
+        "country": "Ουγγαρία",
+        "cc": "hu"
+      },
+      {
+        "iata": "PRG",
+        "name": "Πράγα",
+        "country": "Τσεχία",
+        "cc": "cz"
+      },
+      {
+        "iata": "LCA",
+        "name": "Λάρνακα",
+        "country": "Κύπρος",
+        "cc": "cy"
+      },
+      {
+        "iata": "AMS",
+        "name": "Άμστερνταμ",
+        "country": "Ολλανδία",
+        "cc": "nl"
+      },
+      {
+        "iata": "LIS",
+        "name": "Λισαβόνα",
+        "country": "Πορτογαλία",
+        "cc": "pt"
+      },
+      {
+        "iata": "LHR",
+        "name": "Λονδίνο",
+        "country": "Ηνωμένο Βασίλειο",
+        "cc": "gb"
+      }
+    ],
+    "stays_per_run": {
+      "airbnb": 5,
+      "google_hotels": 3
+    },
+    "stays_windows": [
+      "easter",
+      "summer"
+    ],
+    "stays_places": [
+      {
+        "name": "Χαλκιδική",
+        "q": "Halkidiki, Greece"
+      },
+      {
+        "name": "Πήλιο",
+        "q": "Pelion, Greece"
+      },
+      {
+        "name": "Πάργα",
+        "q": "Parga, Greece"
+      },
+      {
+        "name": "Λευκάδα",
+        "q": "Lefkada, Greece"
+      },
+      {
+        "name": "Νάξος",
+        "q": "Naxos, Greece"
+      },
+      {
+        "name": "Πάρος",
+        "q": "Paros, Greece"
+      },
+      {
+        "name": "Άνδρος",
+        "q": "Andros, Greece"
+      },
+      {
+        "name": "Κέρκυρα",
+        "q": "Corfu, Greece"
+      },
+      {
+        "name": "Κεφαλονιά",
+        "q": "Kefalonia, Greece"
+      },
+      {
+        "name": "Χανιά",
+        "q": "Chania, Greece"
+      },
+      {
+        "name": "Ρέθυμνο",
+        "q": "Rethymno, Greece"
+      },
+      {
+        "name": "Ρόδος",
+        "q": "Rhodes, Greece"
+      },
+      {
+        "name": "Ναύπλιο",
+        "q": "Nafplio, Greece"
+      },
+      {
+        "name": "Θάσος",
+        "q": "Thassos, Greece"
+      }
+    ],
+    "combo_from_best_flights": 3,
+    "min_airbnb_rating": 4.5
+  }
+}

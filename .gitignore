@@ -1,0 +1,9 @@
+# Ιδιωτικά: ΠΟΤΕ στο GitHub
+secrets.json
+# Παράγονται από τη σάρωση (το ιστορικό ζει στον κλάδο "data")
+data/
+site/data.js
+site/*.tmp
+publish_repo/
+__pycache__/
+.claude/

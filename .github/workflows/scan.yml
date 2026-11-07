@@ -1,0 +1,73 @@
+name: Σάρωση προσφορών
+
+# Κάθε ώρα: σάρωση τιμών, email για εξαιρετικές προσφορές, ανανέωση σελίδας.
+# Το ιστορικό τιμών (prices.db) φυλάγεται στον κλάδο "data" (μόνο η τελευταία έκδοση).
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: scan
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    env:
+      TZ: Europe/Athens
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Εξαρτήσεις
+        run: |
+          pip install -r requirements.txt
+          python -m playwright install --with-deps chromium
+
+      - name: Φόρτωση ιστορικού
+        run: |
+          mkdir -p data
+          if git fetch -q --depth=1 origin data; then
+            git show FETCH_HEAD:prices.db > data/prices.db
+            echo "Ιστορικό: $(stat -c%s data/prices.db) bytes"
+          else
+            echo "Δεν υπάρχει ακόμη ιστορικό"
+          fi
+
+      - name: Σάρωση + email
+        env:
+          DIAKOPES_EMAIL: ${{ secrets.DIAKOPES_EMAIL }}
+        run: python collector.py
+
+      - name: Αποθήκευση ιστορικού
+        if: ${{ hashFiles('data/prices.db') != '' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd data
+          git init -q -b data
+          git add prices.db collector.log
+          git -c user.name=diakopes-bot -c user.email=diakopes-bot@users.noreply.github.com \
+              commit -q -m "Ιστορικό τιμών"
+          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" data
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - id: deploy
+        uses: actions/deploy-pages@v4
