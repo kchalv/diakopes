@@ -34,7 +34,7 @@ def settings():
         if s.get("smtp_password"):
             cfg["smtp_password"] = s["smtp_password"]
     if os.environ.get("DIAKOPES_EMAIL"):
-        cfg.update(json.loads(os.environ["DIAKOPES_EMAIL"]))
+        cfg.update(json.loads(os.environ["DIAKOPES_EMAIL"].lstrip("﻿").strip()))
     cfg.setdefault("smtp_password", "")
     return cfg
 

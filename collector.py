@@ -3,7 +3,7 @@
 Συλλέκτης προσφορών διακοπών για οικογένεια (2 ενήλικες + 3 παιδιά).
 
 Πηγές:
-  * Ryanair fare finder (δημόσιο API): ναύλοι μετ' επιστροφής από ATH/SKG
+  * Ryanair fare finder (δημόσιο API): ναύλοι μετ' επιστροφής από/προς Αθήνα (ATH)
     προς όλους τους προορισμούς, Ελλάδα και εξωτερικό, για τις σχολικές αργίες.
   * RSS sites προσφορών (HolidayPirates, Travelzoo, Fly4free κ.ά.): πακέτα,
     ξενοδοχεία, αεροπορικά.
@@ -316,8 +316,8 @@ GREECE_WORDS = [
     "peloponnes", "kalamata", "preveza", "parga", "skiathos", "thassos",
     "samos", "lesbos", "karpathos", "milos", "aegean", "ionian",
 ]
-FROM_GREECE = ["from athens", "from thessaloniki", "ab athen", "ab thessaloniki",
-               "z aten", "από αθήνα", "από θεσσαλονίκη"]
+# μόνο αναχωρήσεις (και επιστροφές) από Αθήνα
+FROM_GREECE = ["from athens", "ab athen", "z aten", "από αθήνα"]
 FAMILY_WORDS = [
     "family", "families", "kids", "kid", "children", "child", "water park",
     "waterpark", "aquapark", "aqua park", "slides", "kids club", "kids go free",

@@ -112,11 +112,23 @@ class Browser:
                 break
         self.google_consent_done = True
 
+    def why(self):
+        try:
+            body = self.page.inner_text("body", timeout=3000)[:160].replace("\n", " ")
+        except Exception:  # noqa: BLE001
+            body = ""
+        return f"«{self.page.title()[:60]}» {body}"
+
     def close(self):
         try:
             self.b.close()
         finally:
             self._pw.stop()
+
+
+def _why(br):
+    """Σύντομη περιγραφή της σελίδας όταν δεν βρέθηκαν αποτελέσματα (για το log)."""
+    return br.why()
 
 
 # ---------------------------------------------------------- Google Flights
@@ -171,7 +183,7 @@ def scrape_airbnb(br, q, ci, co, family):
     try:
         br.page.wait_for_selector('[itemprop="itemListElement"]', timeout=30000)
     except Exception:  # noqa: BLE001
-        return [], url
+        raise RuntimeError(f"καμία κάρτα · {_why(br)}") from None
     time.sleep(2)
     cards = br.page.locator('[itemprop="itemListElement"]')
     res = []
@@ -254,6 +266,8 @@ def scrape_ghotels(br, q, ci, co, family):
         night = float(m.group(2).replace(",", ""))
         res.append(dict(name=m.group(1), link=href, per_night=night, total=night * nights,
                         rating=None, type="hotel"))
+    if not res:
+        raise RuntimeError(f"καμία τιμή ({len(labels)} labels, π.χ. {[l for l, _ in labels[:4]]}) · {_why(br)}")
     res.sort(key=lambda r: r["total"])
     return res, pg.url
 
@@ -366,11 +380,12 @@ def run(c, con, ryanair_flights):
         con.commit()
 
         # Airbnb (κυκλικά + combo)
-        ok = 0
+        ok = skipped = 0
         for p, w, (ci, co), *fl in ab_take + combo:
             key = f"AB|{p['q']}|{ci.isoformat()}|{co.isoformat()}"
             cached = ab_cache.get(key)
             if cached and c.NOW - cached["ts"] < 12 * 3600:
+                skipped += 1
                 continue
             try:
                 res, url = scrape_airbnb(br, p["q"], ci, co, fam)
@@ -387,7 +402,7 @@ def run(c, con, ryanair_flights):
                 errors.append(f"Airbnb {p['name']} {ci}: {str(ex)[:120]}")
             time.sleep(2)
         c.record_run(con, "Airbnb", ok > 0, ok, "")
-        c.log(f"Airbnb: {ok} αναζητήσεις OK")
+        c.log(f"Airbnb: {ok} αναζητήσεις OK, {skipped} πρόσφατες από cache")
         con.commit()
 
         # Google Hotels
