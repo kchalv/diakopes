@@ -15,6 +15,7 @@ Scrapers με πραγματικό browser (Playwright/Chromium) για πηγέ
 import base64
 import datetime as dt
 import json
+import os
 import re
 import statistics
 import time
@@ -340,6 +341,10 @@ def run(c, con, ryanair_flights):
     per = S.get("stays_per_run", {"airbnb": 10, "google_hotels": 6})
     ab_take = rotate(con, "ab_ptr", st_jobs, per.get("airbnb", 10))
     gh_take = rotate(con, "gh_ptr", st_jobs, per.get("google_hotels", 6))
+    # Από servers εκτός Ευρώπης (GitHub Actions) το Google Hotels αγνοεί προορισμό και
+    # νόμισμα (γενικά αποτελέσματα «Ελλάδα» σε $), οπότε εκεί δεν το χρησιμοποιούμε.
+    if os.environ.get("GITHUB_ACTIONS") and not S.get("google_hotels_online", False):
+        gh_take = []
 
     # combo: διαμονή στις ημερομηνίες των καλύτερων πτήσεων Ryanair
     best = sorted([f for f in ryanair_flights if f["deal"] in ("great", "good")],
