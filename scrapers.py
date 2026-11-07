@@ -174,7 +174,7 @@ def scrape_gflights(br, o, d, out, inn, pax):
 
 
 # ------------------------------------------------------------------ Airbnb
-AB_PRICE_RE = re.compile(r"€\s?([\d,.]+)\s*total")
+AB_PRICE_RE = re.compile(r"€\s?([\d,]+)\s*(?:total|for \d+ nights?)")
 AB_RATING_RE = re.compile(r"([\d.]+) out of 5 average rating, ([\d,]+) review")
 
 
@@ -327,7 +327,7 @@ def run(c, con, ryanair_flights):
     gf_jobs = []
     for o in S.get("gflights_origins", ["ATH"]):
         for r in S.get("gflights_routes", []):
-            if r["iata"] == o:
+            if r["iata"] == o or not c.dest_allowed(r["cc"], r["iata"]):
                 continue
             for w in windows:
                 rd = rep_dates(c, w)
@@ -355,6 +355,7 @@ def run(c, con, ryanair_flights):
     # combo: διαμονή στις ημερομηνίες των καλύτερων πτήσεων Ryanair
     best = sorted([f for f in ryanair_flights if f["deal"] in ("great", "good")],
                   key=lambda f: (-f["score"], f["family_total"]))
+    place_by_ap = {a: p for p in S.get("stays_places", []) for a in p.get("airports", [])}
     combo, seen_dest = [], set()
     for f in best:
         if f["dest"] in seen_dest:
@@ -362,7 +363,8 @@ def run(c, con, ryanair_flights):
         seen_dest.add(f["dest"])
         ci = dt.date.fromisoformat(f["out_arr"][:10])
         co = dt.date.fromisoformat(f["in_dt"][:10])
-        combo.append(({"name": f["city"], "q": f"{f['city']}, {f['country']}"},
+        place = place_by_ap.get(f["dest"]) or {"name": f["city"], "q": f"{f['city']}, {f['country']}"}
+        combo.append(({**place, "airports": [f["dest"]] + list(place.get("airports", []))},
                       {"key": f["window"], "label": f["window_label"]}, (ci, co), f))
         if len(combo) >= S.get("combo_from_best_flights", 3):
             break
@@ -407,6 +409,7 @@ def run(c, con, ryanair_flights):
                 if res:
                     good = [x for x in res if (x["rating"] or 0) >= S.get("min_airbnb_rating", 4.5)] or res
                     ab_cache[key] = {"ts": c.NOW, "res": good[:6], "name": p["name"], "q": p["q"],
+                                     "ap": p.get("airports", []),
                                      "w": w["key"], "wl": w["label"], "ci": ci.isoformat(),
                                      "co": co.isoformat(), "url": url,
                                      "median": statistics.median([x["total"] for x in res])}
@@ -428,6 +431,7 @@ def run(c, con, ryanair_flights):
                 res, url = scrape_ghotels(br, p["q"], ci, co, fam)
                 if res:
                     gh_cache[key] = {"ts": c.NOW, "res": res[:6], "name": p["name"], "q": p["q"],
+                                     "ap": p.get("airports", []),
                                      "w": w["key"], "wl": w["label"], "ci": ci.isoformat(),
                                      "co": co.isoformat(), "url": url,
                                      "median": statistics.median([x["total"] for x in res])}
@@ -473,6 +477,8 @@ def build_flights(c, con, cache):
     peers = {}
     for key, v in cache.items():
         peers.setdefault((v["o"], v["r"]["iata"], v["season"]), []).append((v["w"], v["res"][0]["total"]))
+    cache = {k: v for k, v in cache.items() if c.dest_allowed(v["r"]["cc"], v["r"]["iata"])
+             and v["o"] in c.CFG["origins"]}
     for key, v in cache.items():
         best = v["res"][0]
         total = best["total"]
@@ -505,15 +511,16 @@ def build_flights(c, con, cache):
 def build_stays(c, con, ab_cache, gh_cache, all_flights):
     """Διαμονές· όπου υπάρχει πτήση ίδιων ημερομηνιών προς το ίδιο μέρος,
     φτιάχνει και «πακέτο» πτήση + διαμονή."""
-    fl_by_city = {}
+    fl_by_dest = {}
     for f in all_flights:
-        k = (f["city"], f["out_arr"][:10], f["in_dt"][:10])
-        if k not in fl_by_city or f["family_total"] < fl_by_city[k]["family_total"]:
-            fl_by_city[k] = f
+        k = (f["dest"], f["out_arr"][:10], f["in_dt"][:10])
+        if k not in fl_by_dest or f["family_total"] < fl_by_dest[k]["family_total"]:
+            fl_by_dest[k] = f
     out = []
     for src, cache in (("Airbnb", ab_cache), ("Google Hotels", gh_cache)):
         for key, v in cache.items():
-            if not v["res"]:
+            # μόνο τρέχοντες προορισμοί (παλιές ελληνικές αναζητήσεις δεν έχουν "ap")
+            if not v["res"] or not v.get("ap"):
                 continue
             top = v["res"][0]
             h, prev = _hist(c, con, key, v["ts"])
@@ -521,12 +528,13 @@ def build_stays(c, con, ab_cache, gh_cache, all_flights):
             ci, co = dt.date.fromisoformat(v["ci"]), dt.date.fromisoformat(v["co"])
             item = dict(kind="room", source=src, key=key, place=v["name"], q=v["q"],
                         window_label=v["wl"], check_in=v["ci"], check_out=v["co"],
-                        nights=(co - ci).days, region="gr" if "Greece" in v["q"] or "Ελλάδα" in v["q"] else "abroad",
+                        nights=(co - ci).days, region="abroad",
                         results=v["res"][:5], total=top["total"], median=v.get("median"),
                         search_url=v.get("url"), fetched=v["ts"],
                         score=score, deal=label, reasons=reasons,
                         hist=[[ts, p] for ts, p in h][-60:], hist_n=len(prev))
-            f = fl_by_city.get((v["name"], v["ci"], v["co"]))
+            cands = [fl_by_dest[(a, v["ci"], v["co"])] for a in v["ap"] if (a, v["ci"], v["co"]) in fl_by_dest]
+            f = min(cands, key=lambda x: x["family_total"]) if cands else None
             if f:
                 item.update(origin=f["origin"], combo_total=round(top["total"] + f["family_total"]),
                             combo_flight=dict(source=f["source"], airline=f.get("airline") or "Ryanair",

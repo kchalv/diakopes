@@ -27,7 +27,7 @@
     "price_drop_ratio": 0.9
   },
   "max_family_budget_eur_default": 4000,
-  "_rss_note": "Μόνο πηγές που μπορεί να κλείσει κάποιος από Ελλάδα. Αφαιρέθηκαν HolidayPirates, TravelPirates, Travelzoo UK/DE και Urlaubspiraten (πακέτα με πτήσεις από Βρετανία/Γερμανία, σε λίρες, για πελάτες εκείνων των χωρών). Από το Fly4free κρατάμε μόνο αναχωρήσεις από Ελλάδα ή σκέτη διαμονή στην Ελλάδα.",
+  "_rss_note": "Μόνο προσφορές με αναχώρηση από Αθήνα προς τους επιλεγμένους προορισμούς εξωτερικού.",
   "rss_feeds": [
     {
       "name": "Fly4free",
@@ -50,74 +50,8 @@
     "gflights_origins": [
       "ATH"
     ],
-    "gflights_per_run": 10,
+    "gflights_per_run": 15,
     "gflights_routes": [
-      {
-        "iata": "HER",
-        "name": "Ηράκλειο",
-        "country": "Ελλάδα",
-        "cc": "gr"
-      },
-      {
-        "iata": "CHQ",
-        "name": "Χανιά",
-        "country": "Ελλάδα",
-        "cc": "gr"
-      },
-      {
-        "iata": "RHO",
-        "name": "Ρόδος",
-        "country": "Ελλάδα",
-        "cc": "gr"
-      },
-      {
-        "iata": "CFU",
-        "name": "Κέρκυρα",
-        "country": "Ελλάδα",
-        "cc": "gr"
-      },
-      {
-        "iata": "JNX",
-        "name": "Νάξος",
-        "country": "Ελλάδα",
-        "cc": "gr"
-      },
-      {
-        "iata": "PAS",
-        "name": "Πάρος",
-        "country": "Ελλάδα",
-        "cc": "gr"
-      },
-      {
-        "iata": "KGS",
-        "name": "Κως",
-        "country": "Ελλάδα",
-        "cc": "gr"
-      },
-      {
-        "iata": "EFL",
-        "name": "Κεφαλονιά",
-        "country": "Ελλάδα",
-        "cc": "gr"
-      },
-      {
-        "iata": "ZTH",
-        "name": "Ζάκυνθος",
-        "country": "Ελλάδα",
-        "cc": "gr"
-      },
-      {
-        "iata": "SMI",
-        "name": "Σάμος",
-        "country": "Ελλάδα",
-        "cc": "gr"
-      },
-      {
-        "iata": "FCO",
-        "name": "Ρώμη",
-        "country": "Ιταλία",
-        "cc": "it"
-      },
       {
         "iata": "BCN",
         "name": "Βαρκελώνη",
@@ -125,40 +59,22 @@
         "cc": "es"
       },
       {
-        "iata": "CDG",
-        "name": "Παρίσι (Disneyland)",
-        "country": "Γαλλία",
-        "cc": "fr"
+        "iata": "MAD",
+        "name": "Μαδρίτη",
+        "country": "Ισπανία",
+        "cc": "es"
       },
       {
-        "iata": "VIE",
-        "name": "Βιέννη",
-        "country": "Αυστρία",
-        "cc": "at"
+        "iata": "PMI",
+        "name": "Μαγιόρκα",
+        "country": "Ισπανία",
+        "cc": "es"
       },
       {
-        "iata": "BUD",
-        "name": "Βουδαπέστη",
-        "country": "Ουγγαρία",
-        "cc": "hu"
-      },
-      {
-        "iata": "PRG",
-        "name": "Πράγα",
-        "country": "Τσεχία",
-        "cc": "cz"
-      },
-      {
-        "iata": "LCA",
-        "name": "Λάρνακα",
-        "country": "Κύπρος",
-        "cc": "cy"
-      },
-      {
-        "iata": "AMS",
-        "name": "Άμστερνταμ",
-        "country": "Ολλανδία",
-        "cc": "nl"
+        "iata": "AGP",
+        "name": "Μάλαγα",
+        "country": "Ισπανία",
+        "cc": "es"
       },
       {
         "iata": "LIS",
@@ -167,79 +83,302 @@
         "cc": "pt"
       },
       {
+        "iata": "OPO",
+        "name": "Πόρτο",
+        "country": "Πορτογαλία",
+        "cc": "pt"
+      },
+      {
         "iata": "LHR",
         "name": "Λονδίνο",
         "country": "Ηνωμένο Βασίλειο",
         "cc": "gb"
+      },
+      {
+        "iata": "AMS",
+        "name": "Άμστερνταμ",
+        "country": "Ολλανδία",
+        "cc": "nl"
+      },
+      {
+        "iata": "OSL",
+        "name": "Όσλο",
+        "country": "Νορβηγία",
+        "cc": "no"
+      },
+      {
+        "iata": "HEL",
+        "name": "Ελσίνκι",
+        "country": "Φινλανδία",
+        "cc": "fi"
+      },
+      {
+        "iata": "RVN",
+        "name": "Ροβανιέμι (Λαπωνία)",
+        "country": "Φινλανδία",
+        "cc": "fi"
+      },
+      {
+        "iata": "ARN",
+        "name": "Στοκχόλμη",
+        "country": "Σουηδία",
+        "cc": "se"
+      },
+      {
+        "iata": "CDG",
+        "name": "Παρίσι (Disneyland)",
+        "country": "Γαλλία",
+        "cc": "fr"
+      },
+      {
+        "iata": "NCE",
+        "name": "Νίκαια",
+        "country": "Γαλλία",
+        "cc": "fr"
+      },
+      {
+        "iata": "FCO",
+        "name": "Ρώμη",
+        "country": "Ιταλία",
+        "cc": "it"
+      },
+      {
+        "iata": "MXP",
+        "name": "Μιλάνο",
+        "country": "Ιταλία",
+        "cc": "it"
+      },
+      {
+        "iata": "VCE",
+        "name": "Βενετία",
+        "country": "Ιταλία",
+        "cc": "it"
+      },
+      {
+        "iata": "NAP",
+        "name": "Νάπολη",
+        "country": "Ιταλία",
+        "cc": "it"
+      },
+      {
+        "iata": "MLA",
+        "name": "Μάλτα",
+        "country": "Μάλτα",
+        "cc": "mt"
+      },
+      {
+        "iata": "JFK",
+        "name": "Νέα Υόρκη",
+        "country": "ΗΠΑ",
+        "cc": "us"
+      },
+      {
+        "iata": "MCO",
+        "name": "Ορλάντο (Disney World)",
+        "country": "ΗΠΑ",
+        "cc": "us"
       }
     ],
     "stays_per_run": {
-      "airbnb": 5,
+      "airbnb": 8,
       "google_hotels": 3
     },
     "stays_windows": [
+      "xmas",
       "easter",
       "summer"
     ],
     "stays_places": [
       {
-        "name": "Χαλκιδική",
-        "q": "Halkidiki, Greece"
+        "name": "Βαρκελώνη",
+        "q": "Barcelona, Spain",
+        "airports": [
+          "BCN"
+        ]
       },
       {
-        "name": "Πήλιο",
-        "q": "Pelion, Greece"
+        "name": "Μαδρίτη",
+        "q": "Madrid, Spain",
+        "airports": [
+          "MAD"
+        ]
       },
       {
-        "name": "Πάργα",
-        "q": "Parga, Greece"
+        "name": "Μαγιόρκα",
+        "q": "Palma de Mallorca, Spain",
+        "airports": [
+          "PMI"
+        ]
       },
       {
-        "name": "Λευκάδα",
-        "q": "Lefkada, Greece"
+        "name": "Μάλαγα",
+        "q": "Malaga, Spain",
+        "airports": [
+          "AGP"
+        ]
       },
       {
-        "name": "Νάξος",
-        "q": "Naxos, Greece"
+        "name": "Λισαβόνα",
+        "q": "Lisbon, Portugal",
+        "airports": [
+          "LIS"
+        ]
       },
       {
-        "name": "Πάρος",
-        "q": "Paros, Greece"
+        "name": "Πόρτο",
+        "q": "Porto, Portugal",
+        "airports": [
+          "OPO"
+        ]
       },
       {
-        "name": "Άνδρος",
-        "q": "Andros, Greece"
+        "name": "Λονδίνο",
+        "q": "London, United Kingdom",
+        "airports": [
+          "LHR",
+          "LGW",
+          "STN",
+          "LTN",
+          "LCY",
+          "SEN"
+        ]
       },
       {
-        "name": "Κέρκυρα",
-        "q": "Corfu, Greece"
+        "name": "Άμστερνταμ",
+        "q": "Amsterdam, Netherlands",
+        "airports": [
+          "AMS",
+          "EIN"
+        ]
       },
       {
-        "name": "Κεφαλονιά",
-        "q": "Kefalonia, Greece"
+        "name": "Όσλο",
+        "q": "Oslo, Norway",
+        "airports": [
+          "OSL",
+          "TRF",
+          "RYG"
+        ]
       },
       {
-        "name": "Χανιά",
-        "q": "Chania, Greece"
+        "name": "Ελσίνκι",
+        "q": "Helsinki, Finland",
+        "airports": [
+          "HEL"
+        ]
       },
       {
-        "name": "Ρέθυμνο",
-        "q": "Rethymno, Greece"
+        "name": "Ροβανιέμι (Λαπωνία)",
+        "q": "Rovaniemi, Finland",
+        "airports": [
+          "RVN"
+        ]
       },
       {
-        "name": "Ρόδος",
-        "q": "Rhodes, Greece"
+        "name": "Στοκχόλμη",
+        "q": "Stockholm, Sweden",
+        "airports": [
+          "ARN",
+          "NYO",
+          "BMA"
+        ]
       },
       {
-        "name": "Ναύπλιο",
-        "q": "Nafplio, Greece"
+        "name": "Παρίσι (Disneyland)",
+        "q": "Paris, France",
+        "airports": [
+          "CDG",
+          "ORY",
+          "BVA"
+        ]
       },
       {
-        "name": "Θάσος",
-        "q": "Thassos, Greece"
+        "name": "Νίκαια",
+        "q": "Nice, France",
+        "airports": [
+          "NCE"
+        ]
+      },
+      {
+        "name": "Ρώμη",
+        "q": "Rome, Italy",
+        "airports": [
+          "FCO",
+          "CIA"
+        ]
+      },
+      {
+        "name": "Μιλάνο",
+        "q": "Milan, Italy",
+        "airports": [
+          "MXP",
+          "BGY",
+          "LIN"
+        ]
+      },
+      {
+        "name": "Βενετία",
+        "q": "Venice, Italy",
+        "airports": [
+          "VCE",
+          "TSF"
+        ]
+      },
+      {
+        "name": "Νάπολη",
+        "q": "Naples, Italy",
+        "airports": [
+          "NAP"
+        ]
+      },
+      {
+        "name": "Μάλτα",
+        "q": "St. Julian's, Malta",
+        "airports": [
+          "MLA"
+        ]
+      },
+      {
+        "name": "Νέα Υόρκη",
+        "q": "New York, NY, United States",
+        "airports": [
+          "JFK",
+          "EWR",
+          "LGA"
+        ]
+      },
+      {
+        "name": "Ορλάντο (Disney World)",
+        "q": "Orlando, FL, United States",
+        "airports": [
+          "MCO"
+        ]
       }
     ],
-    "combo_from_best_flights": 3,
+    "combo_from_best_flights": 4,
     "min_airbnb_rating": 4.5
+  },
+  "destinations": {
+    "_note": "Μόνο εξωτερικό, με αναχώρηση και επιστροφή από Αθήνα. Χώρες με κωδικό ISO. Από το Ηνωμένο Βασίλειο μόνο Λονδίνο.",
+    "countries": [
+      "es",
+      "pt",
+      "nl",
+      "no",
+      "fi",
+      "se",
+      "fr",
+      "it",
+      "mt",
+      "us"
+    ],
+    "london_airports": [
+      "LHR",
+      "LGW",
+      "STN",
+      "LTN",
+      "LCY",
+      "SEN"
+    ]
   }
 }

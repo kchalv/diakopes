@@ -188,7 +188,7 @@ const badge = d => `<span class="badge ${DEAL[d][0]}">${DEAL[d][1]}</span>`;
 
 // ---------- header
 const famTxt = `${F.adults} ενήλικες + ${AGES.length} παιδιά (${AGES.join(", ")} ετών)`;
-$("#sub").textContent = `Πτήσεις, πακέτα και διαμονή για ${famTxt}. Ελλάδα και εξωτερικό, με ιστορικό τιμών.`;
+$("#sub").textContent = `Πακέτα πτήση + διαμονή, αεροπορικά και δωμάτια για ${famTxt}. Μόνο εξωτερικό, από Αθήνα με επιστροφή, με ιστορικό τιμών.`;
 const gen = new Date(D.generated*1000), next = new Date(D.next_update*1000);
 const fmtDT = d => d.toLocaleString("el-GR",{weekday:"short",day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});
 $("#meta").innerHTML = [
@@ -198,7 +198,7 @@ $("#meta").innerHTML = [
   `Αναχωρήσεις: <b>${D.origins.join(", ")}</b>`
 ].filter(Boolean).map(t=>`<span class="chip">${t}</span>`).join("");
 let notes = "";
-if (Date.now()/1000 - D.generated > 3*3600) notes += `<div class="notice err">Τα δεδομένα είναι παλαιότερα από 3 ώρες, ίσως ο υπολογιστής που κάνει τη σάρωση είναι κλειστός. Ελέγξτε ότι τρέχει η αυτόματη ενημέρωση (GitHub Actions ή προγραμματισμένη εργασία).</div>`;
+if (Date.now()/1000 - D.generated > 3*3600) notes += `<div class="notice err">Τα δεδομένα είναι παλαιότερα από 3 ώρες. Ελέγξτε την αυτόματη σάρωση στην καρτέλα Actions του αποθετηρίου στο GitHub.</div>`;
 if (D.n_scans < 8) notes += `<div class="notice">Το ιστορικό τιμών μόλις ξεκίνησε (${D.n_scans} σαρώσεις). Μέχρι να μαζευτούν μερικές ημέρες, η «πραγματική προσφορά» κρίνεται κυρίως συγκρίνοντας εβδομάδες της ίδιας περιόδου και πτώσεις τιμής. Η κρίση γίνεται πιο αξιόπιστη μετά από 1–2 ημέρες.</div>`;
 if (D.errors && D.errors.length) notes += `<div class="notice err">Κάποιες πηγές απέτυχαν σε αυτή τη σάρωση: ${esc(D.errors.slice(0,3).join(" · "))}</div>`;
 $("#notices").innerHTML = notes;
@@ -271,7 +271,7 @@ function pkgCard(p){
   const cur = {GBP:"£",EUR:"€",USD:"$",PLN:"zł"}[p.currency]||p.currency||"";
   const price = p.price ? `<div class="big">${cur}${p.price.toLocaleString("el-GR")}</div><div class="small">${p.per_person?"ανά άτομο":"από"}${p.currency&&p.currency!=="EUR"?" · "+p.currency:""}</div>` : `<div class="small">δείτε τιμή</div>`;
   const tags = [p.is_new?`<span class="badge b-new">ΝΕΟ</span>`:"",
-    p.tags.greece?`<span class="tag">🇬🇷 Ελλάδα</span>`:"", p.tags.from_greece?`<span class="tag">Αναχώρηση από Ελλάδα</span>`:"",
+    p.tags.from_greece?`<span class="tag">Από Αθήνα</span>`:"",
     p.tags.family?`<span class="tag">👨‍👩‍👧‍👦 Οικογενειακό</span>`:"", p.kind==="package"?`<span class="tag">Πακέτο / διαμονή</span>`:`<span class="tag">Αεροπορικά</span>`,
     p.tags.luxury?`<span class="tag">Πολυτελές</span>`:""].join(" ");
   return `<article class="card">
@@ -320,7 +320,7 @@ function hotelCard(grp){
 }
 
 // ---------- state & filters
-const S = Object.assign({region:"all", origin:"all", win:"all", budget:D.budget_default, onlyDeals:false, sort:"deal", q:"",
+const S = Object.assign({country:"all", origin:"all", win:"all", budget:D.budget_default, onlyDeals:false, sort:"deal", q:"",
   pRegion:"all", pFamily:false, pHideLux:true, pKind:"all", sSrc:"all", fSrc:"all"}, store.get("filters", {}));
 const saveS = () => store.set("filters", S);
 function seg(name, opts){
@@ -332,7 +332,7 @@ function bindSegs(root){
 function filteredFlights(){
   const q = S.q.trim().toLowerCase();
   return D.flights.filter(f =>
-    (S.region==="all"||f.region===S.region) && (S.origin==="all"||f.origin===S.origin) &&
+    (S.country==="all"||f.country===S.country) && (S.origin==="all"||f.origin===S.origin) &&
     (S.fSrc==="all"||f.source===S.fSrc) &&
     (S.win==="all"||f.window===S.win||f.season===S.win) && f.family_total <= S.budget &&
     (!S.onlyDeals || f.deal==="great"||f.deal==="good") &&
@@ -352,9 +352,8 @@ function seasonOptions(){
 // ---------- renderers
 function renderFlights(m){
   m.innerHTML = `<div class="filters">
-    ${seg("region",[["all","Όλα"],["gr","Ελλάδα"],["abroad","Εξωτερικό"]])}
     ${seg("fSrc",[["all","Όλες οι εταιρείες"],["Ryanair","Ryanair"],["Google Flights","Άλλες (Google Flights)"]])}
-    <label>Αναχώρηση<select id="fOrigin"><option value="all">Όλες</option>${D.origins.map(o=>`<option ${S.origin===o?"selected":""}>${o}</option>`).join("")}</select></label>
+    <label>Χώρα<select id="fCountry"><option value="all">Όλες</option>${[...new Set(D.flights.map(f=>f.country))].sort((a,b)=>a.localeCompare(b,"el")).map(c=>`<option ${S.country===c?"selected":""}>${esc(c)}</option>`).join("")}</select></label>
     <label>Περίοδος<select id="fWin">${seasonOptions().map(([v,l])=>`<option value="${v}" ${S.win===v?"selected":""}>${esc(l)}</option>`).join("")}</select></label>
     <label>Μέγ. κόστος πτήσεων οικογένειας: <span id="bv">${eur(S.budget)}</span><input id="fBudget" type="range" min="200" max="6000" step="50" value="${S.budget}"></label>
     <label>Προορισμός<input id="fQ" type="text" placeholder="π.χ. Ρώμη" value="${esc(S.q)}"></label>
@@ -363,7 +362,7 @@ function renderFlights(m){
   </div><div id="fl"></div>
   <p class="muted" style="font-size:12.5px">* Οικογένεια = ναύλος × ${NPAX} άτομα + εκτίμηση ${eur(D.extras)} για ${"2 βαλίτσες και θέσεις ενηλίκων"} (μετ' επιστροφής). Στη Ryanair τα παιδιά 2–11 πληρώνουν τον ίδιο ναύλο με τους ενήλικες, και όταν ταξιδεύουν παιδιά κάτω των 12 ένας ενήλικας πρέπει να πληρώσει θέση. Η τελική τιμή φαίνεται στην κράτηση.</p>`;
   bindSegs(m);
-  $("#fOrigin").onchange=e=>{S.origin=e.target.value;saveS();drawFl();};
+  $("#fCountry").onchange=e=>{S.country=e.target.value;saveS();drawFl();};
   $("#fWin").onchange=e=>{S.win=e.target.value;saveS();drawFl();};
   $("#fBudget").oninput=e=>{S.budget=+e.target.value;$("#bv").textContent=eur(S.budget);saveS();drawFl();};
   $("#fQ").oninput=e=>{S.q=e.target.value;saveS();drawFl();};
@@ -378,31 +377,30 @@ function drawFl(){
 }
 
 function filteredPkgs(){
-  return D.rss.filter(p => (S.pRegion==="all"||p.region===S.pRegion) && (!S.pFamily||p.tags.family) && (!S.pHideLux||!p.tags.luxury) && (S.pKind==="all"||p.kind===S.pKind));
+  return D.rss.filter(p => (!S.pFamily||p.tags.family) && (!S.pHideLux||!p.tags.luxury) && (S.pKind==="all"||p.kind===S.pKind));
 }
 function renderPackages(m){
   m.innerHTML = `<div class="filters">
-    ${seg("pRegion",[["all","Όλα"],["gr","Ελλάδα"],["abroad","Εξωτερικό"]])}
     ${seg("pKind",[["all","Όλα"],["package","Πακέτα / διαμονή"],["flight_deal","Αεροπορικά"]])}
     <label class="check"><input id="pFam" type="checkbox" ${S.pFamily?"checked":""}> Μόνο οικογενειακά</label>
     <label class="check"><input id="pLux" type="checkbox" ${S.pHideLux?"checked":""}> Απόκρυψη πολυτελών & κρουαζιερών</label>
   </div>
   <div id="cb"></div>
-  <h2 class="section-title">🏷️ Προσφορές που κλείνονται από Ελλάδα</h2>
-  <p class="muted" style="font-size:13px">Από το Fly4free, μόνο αναχωρήσεις από Ελλάδα ή σκέτη διαμονή στην Ελλάδα. Η τιμή είναι συνήθως ανά άτομο ή ανά δίκλινο.</p>
+  <h2 class="section-title">🏷️ Έτοιμες προσφορές από Αθήνα</h2>
+  <p class="muted" style="font-size:13px">Από το Fly4free, μόνο αναχωρήσεις από Αθήνα προς τους επιλεγμένους προορισμούς. Η τιμή είναι συνήθως ανά άτομο.</p>
   <div id="pk"></div>`;
   bindSegs(m);
   $("#pFam").onchange=e=>{S.pFamily=e.target.checked;saveS();render();};
   $("#pLux").onchange=e=>{S.pHideLux=e.target.checked;saveS();render();};
-  const cb = D.hotels.filter(h=>h.combo_total && (S.pRegion==="all"||h.region===S.pRegion)).sort((a,b)=>a.combo_total-b.combo_total);
-  $("#cb").innerHTML = `<h2 class="section-title">🧩 Πακέτα πτήση + διαμονή από Ελλάδα</h2>
+  const cb = D.hotels.filter(h=>h.combo_total).sort((a,b)=>a.combo_total-b.combo_total);
+  $("#cb").innerHTML = `<h2 class="section-title">🧩 Πακέτα πτήση + διαμονή από Αθήνα</h2>
     <p class="muted" style="font-size:13px">Φτιάχνονται αυτόματα: πτήση για ${NPAX} άτομα και φθηνότερη καλή διαμονή για τις ίδιες ημερομηνίες. Κλείνονται ξεχωριστά, συνήθως φθηνότερα από ένα έτοιμο πακέτο.</p>
     ${cb.length?`<div class="grid">${cb.slice(0,30).map(hotelCard).join("")}</div>`:`<div class="empty">Δεν υπάρχουν ακόμα συνδυασμοί. Θα εμφανιστούν καθώς συμπληρώνονται οι αναζητήσεις πτήσεων και διαμονής.</div>`}`;
   const list = filteredPkgs();
-  $("#pk").innerHTML = list.length ? `<div class="grid">${list.map(pkgCard).join("")}</div>` : `<div class="empty">Καμία προσφορά από Ελλάδα αυτή τη στιγμή.</div>`;
+  $("#pk").innerHTML = list.length ? `<div class="grid">${list.map(pkgCard).join("")}</div>` : `<div class="empty">Καμία έτοιμη προσφορά από Αθήνα προς αυτούς τους προορισμούς αυτή τη στιγμή.</div>`;
 }
 
-const GR_DEST = ["Χαλκιδική","Κασσάνδρα","Σιθωνία","Πήλιο","Πάργα","Λευκάδα","Κέρκυρα","Κεφαλονιά","Ζάκυνθος","Ναύπλιο","Καλαμάτα","Μεσσηνία","Νάξος","Πάρος","Σίφνος","Μήλος","Άνδρος","Τήνος","Σύρος","Χανιά","Ρέθυμνο","Ηράκλειο","Ρόδος","Κως","Θάσος","Σκιάθος","Σάμος","Λέσβος"];
+const DESTS = ["Barcelona","Madrid","Palma de Mallorca","Malaga","Valencia","Tenerife","Lisbon","Porto","Madeira","London","Amsterdam","Oslo","Bergen","Helsinki","Rovaniemi","Stockholm","Paris","Disneyland Paris","Nice","Rome","Milan","Venice","Florence","Naples","Malta","New York","Orlando","Miami","Los Angeles"];
 function nextSat(m,d){ const y = new Date().getMonth()>7 ? new Date().getFullYear()+1 : new Date().getFullYear(); const t=new Date(Date.UTC(y,m-1,d)); while(t.getUTCDay()!==6) t.setUTCDate(t.getUTCDate()+1); return t; }
 const isoD = d => d.toISOString().slice(0,10);
 function renderRooms(m){
@@ -418,14 +416,14 @@ function renderRooms(m){
   <div class="filters">
     <label>Άφιξη<input type="date" id="rCi" value="${ci}"></label>
     <label>Αναχώρηση<input type="date" id="rCo" value="${co}"></label>
-    <label>Άλλος προορισμός<input type="text" id="rPlace" placeholder="π.χ. Πόρτο Χέλι" value="${esc(custom)}"></label>
+    <label>Άλλος προορισμός<input type="text" id="rPlace" placeholder="π.χ. Σεβίλλη" value="${esc(custom)}"></label>
   </div>
   <p class="muted" style="font-size:13px">Για 5 άτομα συνήθως συμφέρει διαμέρισμα ή οικογενειακό δωμάτιο αντί για δύο δωμάτια. Ελέγξτε πάντα ότι η τιμή αφορά και τα 3 παιδιά, γιατί πολλά ξενοδοχεία χρεώνουν το 13χρονο ως ενήλικα.</p>
   <div class="tablewrap"><table class="dest" id="rTable"></table></div>`;
   const draw = () => {
     const a=$("#rCi").value, b=$("#rCo").value, extra=$("#rPlace").value.trim();
     store.set("roomDates",{ci:a,co:b}); store.set("roomPlace", extra);
-    const list = (extra?[extra]:[]).concat(GR_DEST);
+    const list = (extra?[extra]:[]).concat(DESTS);
     $("#rTable").innerHTML = list.map(p=>`<tr><td><b>${esc(p)}</b></td><td><div class="links" style="padding:0">
       <a class="btn" target="_blank" rel="noopener" href="${L.booking(p,a,b,false)}">Booking ξενοδοχεία</a>
       <a class="btn" target="_blank" rel="noopener" href="${L.booking(p,a,b,true)}">Booking διαμερίσματα</a>
@@ -438,18 +436,17 @@ function renderRooms(m){
 
 function renderTop(m){
   const fl = sortGroups(groupFlights(D.flights.filter(f=>f.family_total<=S.budget)));
-  const grF = fl.filter(g=>g.best.region==="gr").slice(0,6), abF = fl.filter(g=>g.best.region==="abroad").slice(0,9);
-  const pk = D.rss.filter(p=>!p.tags.luxury && (p.tags.family||p.tags.greece)).slice(0,6);
-  const combos = D.hotels.filter(h=>h.combo_total).sort((a,b)=>a.combo_total-b.combo_total).slice(0,6);
-  const hot = groupStays(D.hotels.filter(h=>!h.combo_total && h.region==="gr")).sort((a,b)=>DEAL_RANK[b.best.deal]-DEAL_RANK[a.best.deal]||a.best.total/a.best.nights-b.best.total/b.best.nights).slice(0,6);
+  const abF = fl.slice(0,12);
+  const pk = D.rss.filter(p=>!p.tags.luxury).slice(0,6);
+  const combos = D.hotels.filter(h=>h.combo_total).sort((a,b)=>DEAL_RANK[b.deal]-DEAL_RANK[a.deal]||a.combo_total-b.combo_total).slice(0,9);
+  const hot = groupStays(D.hotels.filter(h=>!h.combo_total)).sort((a,b)=>DEAL_RANK[b.best.deal]-DEAL_RANK[a.best.deal]||a.best.total/a.best.nights-b.best.total/b.best.nights).slice(0,6);
   m.innerHTML = `
-    ${combos.length?`<h2 class="section-title">🧩 Πτήση + διαμονή (φτιαγμένο πακέτο)</h2><p class="muted" style="font-size:13px">Οι καλύτερες τιμές πτήσεων συνδυασμένες με το φθηνότερο καλό σπίτι στο Airbnb για τις ίδιες ημερομηνίες.</p><div class="grid">${combos.map(hotelCard).join("")}</div>`:""}
-    <h2 class="section-title">✈️ Εσωτερικό: πτήσεις προς ελληνικά νησιά & πόλεις</h2>
-    ${grF.length?`<div class="grid">${grF.map(flightCard).join("")}</div>`:`<div class="empty">Δεν βρέθηκαν εσωτερικές πτήσεις κάτω από ${eur(S.budget)}.</div>`}
-    <h2 class="section-title">🌍 Εξωτερικό: καλύτερες τιμές για ${NPAX} άτομα</h2>
-    ${abF.length?`<div class="grid">${abF.map(flightCard).join("")}</div>`:`<div class="empty">Καμία πτήση.</div>`}
-    ${hot.length?`<h2 class="section-title">🏨 Διαμονή στην Ελλάδα για ${NPAX} άτομα</h2><div class="grid">${hot.map(hotelCard).join("")}</div>`:""}
-    ${pk.length?`<h2 class="section-title">🏷️ Προσφορές που κλείνονται από Ελλάδα</h2><div class="grid">${pk.map(pkgCard).join("")}</div>`:""}`;
+    <h2 class="section-title">🧩 Πακέτα πτήση + διαμονή από Αθήνα</h2>
+    ${combos.length?`<p class="muted" style="font-size:13px">Οι καλύτερες τιμές πτήσεων συνδυασμένες με το φθηνότερο καλό σπίτι στο Airbnb για τις ίδιες ημερομηνίες.</p><div class="grid">${combos.map(hotelCard).join("")}</div>`:`<div class="empty">Οι συνδυασμοί πτήση + διαμονή θα εμφανιστούν καθώς συμπληρώνονται οι αναζητήσεις (μέσα στις επόμενες ώρες).</div>`}
+    <h2 class="section-title">✈️ Αεροπορικά από Αθήνα με επιστροφή, για ${NPAX} άτομα</h2>
+    ${abF.length?`<div class="grid">${abF.map(flightCard).join("")}</div>`:`<div class="empty">Καμία πτήση κάτω από ${eur(S.budget)}.</div>`}
+    ${hot.length?`<h2 class="section-title">🏨 Δωμάτια & σπίτια για ${NPAX} άτομα</h2><div class="grid">${hot.map(hotelCard).join("")}</div>`:""}
+    ${pk.length?`<h2 class="section-title">🏷️ Έτοιμες προσφορές από Αθήνα</h2><div class="grid">${pk.map(pkgCard).join("")}</div>`:""}`;
 }
 
 const SEARCH = [
@@ -470,8 +467,6 @@ const SEARCH = [
     ["Expedia: Πτήση + Ξενοδοχείο", "https://www.expedia.gr/"],
     ["Manessis Travel: οργανωμένα ταξίδια", "https://www.manessis.com/"],
     ["Ekdromi.gr: προσφορές ξενοδοχείων", "https://www.ekdromi.gr/"],
-    ["HolidayPirates", "https://www.holidaypirates.com/"],
-    ["Travelzoo", "https://www.travelzoo.com/uk/"],
   ]],
   ["🏨 Δωμάτια & διαμερίσματα", [
     ["Booking.com (οικογένεια 5 ατόμων)", `https://www.booking.com/index.el.html?group_adults=${F.adults}&group_children=${AGES.length}${AGES.map(a=>"&age="+a).join("")}`],
@@ -481,15 +476,10 @@ const SEARCH = [
     ["Trivago: σύγκριση τιμών", "https://www.trivago.gr/"],
     ["Hotels.com", "https://el.hotels.com/"],
   ]],
-  ["⛴️ Πλοία για τα νησιά", [
-    ["Ferryhopper: όλες οι ακτοπλοϊκές", "https://www.ferryhopper.com/el/"],
-    ["Blue Star Ferries", "https://www.bluestarferries.com/el/"],
-    ["Seajets", "https://www.seajets.com/el/"],
-    ["Openseas: δρομολόγια", "https://www.openseas.gr/"],
-  ]],
-  ["🏛️ Επιδοτούμενα προγράμματα", [
-    ["Τουρισμός για Όλους", "https://tourismforall.gov.gr/"],
-    ["ΔΥΠΑ: Κοινωνικός Τουρισμός", "https://www.dypa.gov.gr/"],
+  ["🛂 Ταξιδιωτικά έγγραφα", [
+    ["ΗΠΑ: ESTA (επίσημο site)", "https://esta.cbp.dhs.gov/"],
+    ["Ηνωμένο Βασίλειο: ETA (επίσημο site)", "https://www.gov.uk/guidance/apply-for-an-electronic-travel-authorisation-eta"],
+    ["Ευρωπαϊκή Κάρτα Ασφάλισης Ασθένειας", "https://www.efka.gov.gr/"],
   ]],
 ];
 function renderSearch(m){
@@ -498,7 +488,7 @@ function renderSearch(m){
   <section class="card" style="margin-bottom:28px"><h3>Συμβουλές για οικογένεια με παιδιά 9, 11 και 13 ετών</h3>
   <ul class="reasons" style="font-size:14px">
     <li>Το 13χρονο μετράει ως έφηβος ή ενήλικας σε πολλές αεροπορικές και ξενοδοχεία. Δηλώνετε πάντα τις σωστές ηλικίες για να δείτε την πραγματική τιμή.</li>
-    <li>Στα πλοία τα παιδιά μικρής ηλικίας έχουν συνήθως μειωμένο εισιτήριο. Ελέγξτε τα όρια ηλικίας κάθε εταιρείας.</li>
+    <li>Για ΗΠΑ χρειάζεται ESTA και για Λονδίνο ETA για κάθε μέλος της οικογένειας, και τα παιδιά χρειάζονται δικό τους διαβατήριο. Κάντε τις αιτήσεις μόνο στα επίσημα sites.</li>
     <li>Οι πτήσεις χαμηλού κόστους φαίνονται φθηνές, αλλά για 5 άτομα οι αποσκευές και οι θέσεις ανεβάζουν πολύ το σύνολο. Συγκρίνετε πάντα το συνολικό κόστος.</li>
     <li>Τα διαμερίσματα με κουζίνα μειώνουν πολύ το κόστος φαγητού για 5 άτομα.</li>
     <li>Οι εβδομάδες γύρω από τις 15 Αυγούστου είναι σχεδόν πάντα οι ακριβότερες. Ο Ιούνιος μετά το κλείσιμο των σχολείων και ο Σεπτέμβριος είναι φθηνότεροι.</li>
@@ -509,7 +499,7 @@ function render(){
   const m = $("#main");
   ({top:renderTop, flights:renderFlights, packages:renderPackages, rooms:renderRooms, search:renderSearch})[tab](m);
 }
-$("#footer").innerHTML = `Δεδομένα: Ryanair (δημόσιες τιμές), Google Flights, Airbnb, Google Hotels, Fly4free (μόνο ό,τι κλείνεται από Ελλάδα). Booking.com και Skyscanner δεν διαβάζονται αυτόματα γιατί μπλοκάρουν τα προγράμματα, γι' αυτό υπάρχουν έτοιμοι σύνδεσμοι αναζήτησης. Οι τιμές αλλάζουν συνεχώς και επιβεβαιώνονται μόνο στην κράτηση. Η σελίδα ανανεώνεται μόνη της κάθε 15 λεπτά, και τα δεδομένα κάθε ώρα.`;
+$("#footer").innerHTML = `Δεδομένα: Ryanair (δημόσιες τιμές), Google Flights, Airbnb, Google Hotels, Fly4free. Μόνο προορισμοί εξωτερικού (Ισπανία, Πορτογαλία, Λονδίνο, Ολλανδία, Νορβηγία, Φινλανδία, Σουηδία, Γαλλία, Ιταλία, Μάλτα, ΗΠΑ) με αναχώρηση και επιστροφή από Αθήνα. Booking.com και Skyscanner δεν διαβάζονται αυτόματα γιατί μπλοκάρουν τα προγράμματα, γι' αυτό υπάρχουν έτοιμοι σύνδεσμοι αναζήτησης. Οι τιμές αλλάζουν συνεχώς και επιβεβαιώνονται μόνο στην κράτηση. Η σελίδα ανανεώνεται μόνη της κάθε 15 λεπτά, και τα δεδομένα κάθε ώρα.`;
 renderTabs(); render();
 })();
 </script>

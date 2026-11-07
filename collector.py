@@ -37,6 +37,17 @@ DATA_DIR = BASE / "data"
 DB_PATH = DATA_DIR / "prices.db"
 OUT_PATH = BASE / "site" / "data.js"
 LOG_PATH = DATA_DIR / "collector.log"
+
+_DEST = CFG.get("destinations", {})
+ALLOWED_CC = {c.lower() for c in _DEST.get("countries", [])}
+LONDON_AIRPORTS = set(_DEST.get("london_airports", []))
+
+
+def dest_allowed(cc, iata):
+    """Μόνο οι επιλεγμένες χώρες εξωτερικού (και από το Ηνωμένο Βασίλειο μόνο Λονδίνο)."""
+    if not ALLOWED_CC:
+        return True
+    return (cc or "").lower() in ALLOWED_CC or iata in LONDON_AIRPORTS
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/130.0 Safari/537.36")
 REFRESH_HOURS = 1
@@ -258,6 +269,8 @@ def collect_ryanair(con):
                 pp = float(sm["price"]["value"])
                 prev = (sm.get("previousPrice") or {}).get("value")
                 dest = arr["iataCode"]
+                if not dest_allowed(arr.get("city", {}).get("countryCode") or arr.get("countryCode"), dest):
+                    continue
                 items.append(dict(
                     kind="flight", source="Ryanair",
                     key=f"FR|{origin}|{dest}|{w['key']}",
@@ -315,6 +328,21 @@ GREECE_WORDS = [
     "athens", "athen", "αθήνα", "thessaloniki", "peloponnese",
     "peloponnes", "kalamata", "preveza", "parga", "skiathos", "thassos",
     "samos", "lesbos", "karpathos", "milos", "aegean", "ionian",
+]
+DEST_WORDS = [
+    "spain", "spanien", "hiszpani*", "barcelona", "madrid", "mallorca", "majorca", "malaga",
+    "valencia", "seville", "sevilla", "ibiza", "tenerife", "canary", "canaries",
+    "portugal", "portugali*", "lisbon", "lissabon", "porto", "madeira", "algarve", "faro",
+    "london", "londyn", "netherlands", "holland", "amsterdam", "eindhoven",
+    "norway", "norwegen", "norwegi*", "oslo", "bergen", "finland", "finnland", "finlandi*",
+    "helsinki", "lapland", "lappland", "rovaniemi", "sweden", "schweden", "szwecj*", "stockholm",
+    "gothenburg", "france", "frankreich", "francj*", "paris", "paryż", "disneyland",
+    "lyon", "marseille", "italy", "italien", "włoch*", "rome", "rzym", "milan", "mailand",
+    "venice", "naples", "neapel", "sicily", "sardinia", "bologna", "pisa", "malta",
+    "usa", "united states", "new york", "nowy jork", "orlando", "miami", "los angeles",
+    "san francisco", "las vegas", "boston", "chicago", "florida",
+    "ισπανία", "πορτογαλία", "λονδίνο", "ολλανδία", "νορβηγία", "φινλανδία", "σουηδία",
+    "γαλλία", "ιταλία", "μάλτα", "αμερική", "ηπα",
 ]
 # μόνο αναχωρήσεις (και επιστροφές) από Αθήνα
 FROM_GREECE = ["from athens", "ab athen", "z aten", "από αθήνα"]
@@ -426,8 +454,8 @@ def collect_rss(con):
                          + 2 * bool(fam) + 1 * bool(pkg) - 2 * bool(lux))
             if has_any(text, EXCLUDE_WORDS):
                 continue
-            # Μόνο ό,τι κλείνεται από Ελλάδα: αναχώρηση από Ελλάδα ή σκέτη διαμονή στην Ελλάδα
-            if not (from_gr or (gr and not fl)):
+            # Μόνο αναχώρηση από Αθήνα προς τους επιλεγμένους προορισμούς εξωτερικού
+            if not (from_gr and has_any(text, DEST_WORDS)):
                 continue
             if relevance < CFG.get("rss_min_relevance", 2):
                 continue
@@ -449,7 +477,7 @@ def collect_rss(con):
                 kind=kind, source=feed["name"], title=title, link=link,
                 desc=desc[:280], date=date, img=img, price=price, currency=cur,
                 per_person=pp_note,
-                region="gr" if (gr or from_gr) else "abroad",
+                region="abroad",
                 tags=dict(greece=bool(gr), from_greece=bool(from_gr),
                           family=bool(fam), package=bool(pkg), luxury=bool(lux)),
                 relevance=relevance, first_seen=first_seen,
