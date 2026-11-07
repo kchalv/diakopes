@@ -150,7 +150,7 @@ def scrape_gflights(br, o, d, out, inn, pax):
     try:
         br.page.wait_for_selector('[aria-label^="From "]', timeout=25000)
     except Exception:  # noqa: BLE001
-        return [], url
+        raise RuntimeError(f"καμία πτήση · {_why(br)}") from None
     time.sleep(1.5)
     labels = br.page.eval_on_selector_all(
         "[aria-label]", 'els => els.map(e => e.getAttribute("aria-label")).filter(t => /^From \\d/.test(t))')
@@ -167,6 +167,8 @@ def scrape_gflights(br, o, d, out, inn, pax):
             continue
         seen.add(k)
         res.append(dict(total=price, stops=stops, airline=airline, dep=_to24(m.group(4))))
+    if labels and not res:
+        raise RuntimeError(f"άγνωστη μορφή τιμής: {labels[0][:160]}")
     res.sort(key=lambda r: (r["total"], r["stops"]))
     return res, url
 
@@ -212,6 +214,8 @@ def scrape_airbnb(br, q, ci, co, family):
                         rating=float(rm.group(1)) if rm else None,
                         reviews=int(rm.group(2).replace(",", "")) if rm else None,
                         type=ptype, bedrooms=bedrooms))
+    if not res and cards.count():
+        raise RuntimeError("άγνωστη μορφή τιμής: " + cards.first.inner_text().replace("\n", " | ")[:200])
     res.sort(key=lambda r: r["total"])
     return res, url
 
