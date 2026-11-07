@@ -43,7 +43,7 @@
     "starttls": true,
     "max_family_budget_eur": 4000,
     "max_items_per_email": 15,
-    "page_url": "https://kchalv.github.io/"
+    "page_url": "https://kchalv.github.io/diakopes/"
   },
   "scrape": {
     "_note": "Scraping με browser (Playwright). Κάθε εκτέλεση κάνει ένα μέρος των αναζητήσεων κυκλικά, ώστε όλες να ανανεώνονται περίπου μία φορά τη μέρα χωρίς υπερβολικό φόρτο στα sites.",
