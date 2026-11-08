@@ -40,7 +40,8 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -z "${{ github.event.inputs.source }}" ]; then
             echo "Χειροκίνητη εκκίνηση: τρέχει πάντα"; echo "skip=false" >> "$GITHUB_OUTPUT"; exit 0
           fi
-          last=$(gh run list -R "${{ github.repository }}" -w scan.yml -s success -L 1 --json updatedAt -q '.[0].updatedAt')
+          # Ο κλάδος "data" γράφεται μόνο στο τέλος μιας πραγματικής σάρωσης, άρα δείχνει πότε έγινε η τελευταία.
+          last=$(gh api "repos/${{ github.repository }}/commits/data" -q '.commit.committer.date' 2>/dev/null || true)
           if [ -z "$last" ]; then echo "Καμία προηγούμενη σάρωση"; echo "skip=false" >> "$GITHUB_OUTPUT"; exit 0; fi
           age=$(( ($(date +%s) - $(date -d "$last" +%s)) / 60 ))
           echo "Τελευταία επιτυχής σάρωση πριν από $age λεπτά (όριο $MIN_GAP_MIN)"
