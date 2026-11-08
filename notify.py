@@ -13,6 +13,7 @@ DIAKOPES_SMTP_PASSWORD. Το secrets.json δεν ανεβαίνει ποτέ σ�
 import html
 import json
 import os
+import re
 import smtplib
 import ssl
 import sys
@@ -39,11 +40,19 @@ def settings():
     return cfg
 
 
+def recipients(cfg):
+    """Το "to" μπορεί να είναι λίστα ή διευθύνσεις χωρισμένες με κόμμα/ερωτηματικό."""
+    to = cfg.get("to") or ""
+    if isinstance(to, str):
+        to = re.split(r"[,;\s]+", to)
+    return [t.strip() for t in to if t and t.strip()]
+
+
 def send(cfg, subject, html_body, text_body):
     msg = EmailMessage()
     msg["Subject"] = subject
     msg["From"] = cfg["from"]
-    msg["To"] = cfg["to"]
+    msg["To"] = ", ".join(recipients(cfg))
     msg["Date"] = formatdate(localtime=True)
     msg["Message-ID"] = make_msgid(domain=cfg["from"].split("@")[-1])
     msg.set_content(text_body)
@@ -83,11 +92,14 @@ def _deal_rows(payload, budget):
     for h in payload["hotels"]:
         if h["deal"] == "great":
             price = h.get("combo_total") or h["total"]
+            cf = h.get("combo_flight") or {}
             rows.append(dict(key=h["key"], price=price,
                              kind="🧩 Πτήση + διαμονή" if h.get("combo_total") else "🏠 Διαμονή",
                              title=f"{h['place']} · {h['results'][0]['name']}",
                              when=f"{h['check_in']} → {h['check_out']} · {h['nights']} νύχτες",
-                             who=h["source"], reasons=h["reasons"],
+                             who=(f"{cf.get('airline')} από Αθήνα {eur(cf.get('total', 0))} + {h['source']}"
+                                  if cf else h["source"]),
+                             reasons=h["reasons"],
                              url=h.get("search_url") or h["results"][0].get("link") or ""))
     rows.sort(key=lambda r: r["price"])
     return rows
@@ -97,7 +109,7 @@ def notify_deals(con, payload, log=print):
     cfg = settings()
     if not cfg.get("enabled"):
         return "Email ανενεργό"
-    if not all(cfg.get(k) for k in ("smtp_password", "to", "from", "smtp_host", "smtp_user")):
+    if not all(cfg.get(k) for k in ("smtp_password", "from", "smtp_host", "smtp_user")) or not recipients(cfg):
         return "Email: λείπουν στοιχεία SMTP (secrets.json ή DIAKOPES_EMAIL)"
     row = con.execute("SELECT v FROM kv WHERE k='emailed'").fetchone()
     sent = json.loads(row[0]) if row else {}
@@ -150,4 +162,4 @@ if __name__ == "__main__":
         send(cfg, "Δοκιμή: προσφορές διακοπών",
              "<p>Το email ειδοποιήσεων για προσφορές διακοπών λειτουργεί.</p>",
              "Το email ειδοποιήσεων για προσφορές διακοπών λειτουργεί.")
-        print(f"Στάλθηκε δοκιμαστικό email στο {cfg['to']}")
+        print(f"Στάλθηκε δοκιμαστικό email σε: {', '.join(recipients(cfg))}")

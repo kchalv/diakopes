@@ -36,7 +36,7 @@
   ],
   "rss_min_relevance": 2,
   "email": {
-    "_note": "Email για ΕΞΑΙΡΕΤΙΚΕΣ προσφορές. Διευθύνσεις, server και κωδικός ΔΕΝ μπαίνουν εδώ (το αποθετήριο είναι δημόσιο): online είναι στο GitHub Secret DIAKOPES_EMAIL, τοπικά στο secrets.json → email.",
+    "_note": "Email για ΕΞΑΙΡΕΤΙΚΕΣ προσφορές. Διευθύνσεις, server και κωδικός ΔΕΝ μπαίνουν εδώ (το αποθετήριο είναι δημόσιο): online είναι στο GitHub Secret DIAKOPES_EMAIL, τοπικά στο secrets.json → email. Το πεδίο \"to\" δέχεται πολλές διευθύνσεις χωρισμένες με κόμμα.",
     "enabled": true,
     "smtp_port": 587,
     "starttls": true,
@@ -50,7 +50,7 @@
     "gflights_origins": [
       "ATH"
     ],
-    "gflights_per_run": 15,
+    "gflights_per_run": 18,
     "gflights_routes": [
       {
         "iata": "BCN",
@@ -91,7 +91,25 @@
       {
         "iata": "LHR",
         "name": "Λονδίνο",
-        "country": "Ηνωμένο Βασίλειο",
+        "country": "Αγγλία",
+        "cc": "gb"
+      },
+      {
+        "iata": "MAN",
+        "name": "Μάντσεστερ",
+        "country": "Αγγλία",
+        "cc": "gb"
+      },
+      {
+        "iata": "EDI",
+        "name": "Εδιμβούργο",
+        "country": "Σκωτία",
+        "cc": "gb"
+      },
+      {
+        "iata": "CWL",
+        "name": "Κάρντιφ",
+        "country": "Ουαλία",
         "cc": "gb"
       },
       {
@@ -99,6 +117,18 @@
         "name": "Άμστερνταμ",
         "country": "Ολλανδία",
         "cc": "nl"
+      },
+      {
+        "iata": "ZRH",
+        "name": "Ζυρίχη",
+        "country": "Ελβετία",
+        "cc": "ch"
+      },
+      {
+        "iata": "GVA",
+        "name": "Γενεύη",
+        "country": "Ελβετία",
+        "cc": "ch"
       },
       {
         "iata": "OSL",
@@ -180,7 +210,7 @@
       }
     ],
     "stays_per_run": {
-      "airbnb": 8,
+      "airbnb": 10,
       "google_hotels": 3
     },
     "stays_windows": [
@@ -244,11 +274,50 @@
         ]
       },
       {
+        "name": "Μάντσεστερ",
+        "q": "Manchester, United Kingdom",
+        "airports": [
+          "MAN",
+          "LPL"
+        ]
+      },
+      {
+        "name": "Εδιμβούργο",
+        "q": "Edinburgh, United Kingdom",
+        "airports": [
+          "EDI",
+          "GLA"
+        ]
+      },
+      {
+        "name": "Κάρντιφ",
+        "q": "Cardiff, United Kingdom",
+        "airports": [
+          "CWL",
+          "BRS"
+        ]
+      },
+      {
         "name": "Άμστερνταμ",
         "q": "Amsterdam, Netherlands",
         "airports": [
           "AMS",
           "EIN"
+        ]
+      },
+      {
+        "name": "Ζυρίχη",
+        "q": "Zurich, Switzerland",
+        "airports": [
+          "ZRH",
+          "BSL"
+        ]
+      },
+      {
+        "name": "Γενεύη",
+        "q": "Geneva, Switzerland",
+        "airports": [
+          "GVA"
         ]
       },
       {
@@ -353,17 +422,34 @@
         "airports": [
           "MCO"
         ]
+      },
+      {
+        "name": "Ναύπλιο",
+        "q": "Nafplio, Greece",
+        "airports": [],
+        "rooms_only": true,
+        "region": "gr",
+        "priority": true,
+        "windows": [
+          "xmas",
+          "apokries",
+          "easter",
+          "summer"
+        ]
       }
     ],
     "combo_from_best_flights": 4,
-    "min_airbnb_rating": 4.5
+    "min_airbnb_rating": 4.5,
+    "_stays_places_note": "Κάθε μέρος: name, q (αναζήτηση), airports (για πακέτο με πτήση). Προαιρετικά: rooms_only (μόνο δωμάτια, χωρίς πτήση), region 'gr', windows (δικές του περίοδοι), priority (ελέγχεται σε κάθε σάρωση, έως 2 φορές τη μέρα)."
   },
   "destinations": {
-    "_note": "Μόνο εξωτερικό, με αναχώρηση και επιστροφή από Αθήνα. Χώρες με κωδικό ISO. Από το Ηνωμένο Βασίλειο μόνο Λονδίνο.",
+    "_note": "Μόνο εξωτερικό (συν Ναύπλιο, μόνο δωμάτια), με αναχώρηση και επιστροφή από Αθήνα. Χώρες με κωδικό ISO. Από το Ηνωμένο Βασίλειο: Αγγλία, Σκωτία, Ουαλία (όχι Βόρεια Ιρλανδία).",
     "countries": [
       "es",
       "pt",
+      "gb",
       "nl",
+      "ch",
       "no",
       "fi",
       "se",
@@ -372,13 +458,10 @@
       "mt",
       "us"
     ],
-    "london_airports": [
-      "LHR",
-      "LGW",
-      "STN",
-      "LTN",
-      "LCY",
-      "SEN"
+    "excluded_airports": [
+      "BFS",
+      "BHD",
+      "LDY"
     ]
   }
 }

@@ -188,7 +188,7 @@ const badge = d => `<span class="badge ${DEAL[d][0]}">${DEAL[d][1]}</span>`;
 
 // ---------- header
 const famTxt = `${F.adults} ενήλικες + ${AGES.length} παιδιά (${AGES.join(", ")} ετών)`;
-$("#sub").textContent = `Πακέτα πτήση + διαμονή, αεροπορικά και δωμάτια για ${famTxt}. Μόνο εξωτερικό, από Αθήνα με επιστροφή, με ιστορικό τιμών.`;
+$("#sub").textContent = `Ολοκληρωμένες προτάσεις πτήση + διαμονή, αεροπορικά όλων των εταιρειών και δωμάτια για ${famTxt}. Εξωτερικό από Αθήνα με επιστροφή, συν Ναύπλιο (μόνο δωμάτια), με ιστορικό τιμών.`;
 const gen = new Date(D.generated*1000), next = new Date(D.next_update*1000);
 const fmtDT = d => d.toLocaleString("el-GR",{weekday:"short",day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});
 $("#meta").innerHTML = [
@@ -285,6 +285,14 @@ function pkgCard(p){
 }
 
 // ---------- room logic
+function comboFlights(h){
+  const fl = h.combo_flights || [];
+  if (fl.length < 2) return "";
+  return `<details class="more"><summary>Όλες οι αεροπορικές για αυτές τις ημερομηνίες (${fl.length})</summary>
+    <table class="alt"><tr><th>Εταιρεία</th><th>Αναχ.</th><th>Στάσεις</th><th class="n">Πτήση*</th><th class="n">Πακέτο</th></tr>
+    ${fl.map(o=>`<tr><td>${o.url?`<a href="${esc(o.url)}" target="_blank" rel="noopener">${esc(o.airline)}</a>`:esc(o.airline)}<br><span class="muted">${esc(o.source)}${o.dest?" · "+esc(o.dest):""}</span></td><td>${esc(o.dep||"–")}</td><td>${o.stops?o.stops+" στάση":"απευθείας"}</td><td class="n">${eur(o.total)}</td><td class="n"><b>${eur(o.total + h.total)}</b></td></tr>`).join("")}</table>
+    <div class="muted" style="font-size:12px">* Για ${NPAX} άτομα, από Αθήνα με επιστροφή, με εκτίμηση αποσκευών. Το πακέτο = πτήση + η φθηνότερη καλή διαμονή.</div></details>`;
+}
 function groupStays(list){
   const g = new Map();
   for (const h of list){ const k=h.source+"|"+h.place; if(!g.has(k)) g.set(k,[]); g.get(k).push(h); }
@@ -302,9 +310,9 @@ function hotelCard(grp){
   return `<article class="card">
     <div class="row"><div><h3>${esc(h.place)}</h3><div class="where">${fmtDate(h.check_in)} → ${fmtDate(h.check_out)} · ${h.nights} νύχτες · ${esc(h.source)}</div></div>
     <div class="price"><div class="big">${eur(h.total)}</div><div class="small">${ab?"σύνολο διαμονής για "+NPAX:"εκτίμηση: τιμή/νύχτα × "+h.nights}</div></div></div>
-    <div>${badge(h.deal)} ${h.window_label?`<span class="tag">${esc(h.window_label)}</span>`:""}</div>
-    ${h.combo_total?`<div class="facts"><span>✈️ Πτήση</span><b>${h.combo_flight&&h.combo_flight.url?`<a href="${esc(h.combo_flight.url)}" target="_blank" rel="noopener">${esc(h.combo_flight.airline)}</a>`:esc(h.combo_flight?h.combo_flight.airline:"")} από ${esc(h.origin)}: ${eur(h.combo_flight?h.combo_flight.total:null)}</b>
-      <span>🏠 Διαμονή</span><b>${eur(h.total)}</b><span>Σύνολο πακέτου</span><b style="font-size:16px">${eur(h.combo_total)}</b></div>`:""}
+    <div>${badge(h.deal)} ${h.window_label?`<span class="tag">${esc(h.window_label)}</span>`:""}${h.rooms_only?` <span class="tag">🏛️ Μόνο δωμάτια</span>`:""}</div>
+    ${h.combo_total?`<div class="facts"><span>✈️ Πτήση</span><b>${h.combo_flight&&h.combo_flight.url?`<a href="${esc(h.combo_flight.url)}" target="_blank" rel="noopener">${esc(h.combo_flight.airline)}</a>`:esc(h.combo_flight?h.combo_flight.airline:"")} από ${esc(h.origin)} με επιστροφή: ${eur(h.combo_flight?h.combo_flight.total:null)}</b>
+      <span>🏠 Διαμονή</span><b>${eur(h.total)}</b><span>Σύνολο πακέτου</span><b style="font-size:16px">${eur(h.combo_total)}</b></div>${comboFlights(h)}`:""}
     ${h.reasons.length?`<ul class="reasons">${h.reasons.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>`:""}
     <table class="alt"><tr><th>Κατάλυμα</th><th class="n">${ab?"Βαθμ.":"/νύχτα"}</th><th class="n">Σύνολο</th></tr>
     ${r.map(x=>`<tr><td>${x.link?`<a href="${esc(x.link)}" target="_blank" rel="noopener">${esc(x.name)}</a>`:esc(x.name)}${x.type&&ab?`<br><span class="muted">${esc(x.type)}${x.bedrooms?" · "+esc(x.bedrooms):""}</span>`:""}</td><td class="n">${ab?(x.rating??"νέο"):eur(x.per_night)}</td><td class="n">${eur(x.total)}</td></tr>`).join("")}</table>
@@ -394,13 +402,13 @@ function renderPackages(m){
   $("#pLux").onchange=e=>{S.pHideLux=e.target.checked;saveS();render();};
   const cb = D.hotels.filter(h=>h.combo_total).sort((a,b)=>a.combo_total-b.combo_total);
   $("#cb").innerHTML = `<h2 class="section-title">🧩 Πακέτα πτήση + διαμονή από Αθήνα</h2>
-    <p class="muted" style="font-size:13px">Φτιάχνονται αυτόματα: πτήση για ${NPAX} άτομα και φθηνότερη καλή διαμονή για τις ίδιες ημερομηνίες. Κλείνονται ξεχωριστά, συνήθως φθηνότερα από ένα έτοιμο πακέτο.</p>
+    <p class="muted" style="font-size:13px">Φτιάχνονται αυτόματα: πτήση με επιστροφή από Αθήνα για ${NPAX} άτομα (όλες οι εταιρείες) και φθηνότερη καλή διαμονή για τις ίδιες ημερομηνίες. Κλείνονται ξεχωριστά, συνήθως φθηνότερα από ένα έτοιμο πακέτο.</p>
     ${cb.length?`<div class="grid">${cb.slice(0,30).map(hotelCard).join("")}</div>`:`<div class="empty">Δεν υπάρχουν ακόμα συνδυασμοί. Θα εμφανιστούν καθώς συμπληρώνονται οι αναζητήσεις πτήσεων και διαμονής.</div>`}`;
   const list = filteredPkgs();
   $("#pk").innerHTML = list.length ? `<div class="grid">${list.map(pkgCard).join("")}</div>` : `<div class="empty">Καμία έτοιμη προσφορά από Αθήνα προς αυτούς τους προορισμούς αυτή τη στιγμή.</div>`;
 }
 
-const DESTS = ["Barcelona","Madrid","Palma de Mallorca","Malaga","Valencia","Tenerife","Lisbon","Porto","Madeira","London","Amsterdam","Oslo","Bergen","Helsinki","Rovaniemi","Stockholm","Paris","Disneyland Paris","Nice","Rome","Milan","Venice","Florence","Naples","Malta","New York","Orlando","Miami","Los Angeles"];
+const DESTS = ["Nafplio","Barcelona","Madrid","Palma de Mallorca","Malaga","Valencia","Tenerife","Lisbon","Porto","Madeira","London","Manchester","Liverpool","Edinburgh","Glasgow","Cardiff","Amsterdam","Rotterdam","Zurich","Geneva","Lucerne","Interlaken","Oslo","Bergen","Helsinki","Rovaniemi","Stockholm","Paris","Disneyland Paris","Nice","Rome","Milan","Venice","Florence","Naples","Malta","New York","Orlando","Miami","Los Angeles"];
 function nextSat(m,d){ const y = new Date().getMonth()>7 ? new Date().getFullYear()+1 : new Date().getFullYear(); const t=new Date(Date.UTC(y,m-1,d)); while(t.getUTCDay()!==6) t.setUTCDate(t.getUTCDate()+1); return t; }
 const isoD = d => d.toISOString().slice(0,10);
 function renderRooms(m){
@@ -410,7 +418,7 @@ function renderRooms(m){
   const stays = D.hotels.filter(h=>S.sSrc==="all"||h.source===S.sSrc);
   const gs = groupStays(stays).sort((a,b)=>DEAL_RANK[b.best.deal]-DEAL_RANK[a.best.deal]||a.best.total/a.best.nights-b.best.total/b.best.nights);
   m.innerHTML = `<div class="filters">${seg("sSrc",[["all","Όλες οι πηγές"],["Airbnb","Airbnb"],["Google Hotels","Google Hotels"]])}</div>
-  <p class="muted" style="font-size:13px">Αυτόματη παρακολούθηση τιμών για ${esc(famTxt)}. Κάθε προορισμός και περίοδος ελέγχεται περίπου μία φορά τη μέρα. Το Airbnb δείχνει σπίτια που χωράνε 5 άτομα με βαθμολογία 4,5 και πάνω. Το Google Hotels δείχνει ξενοδοχεία με 4+ και συγκεντρώνει τιμές από Booking, Expedia και άλλα sites.</p>
+  <p class="muted" style="font-size:13px">Αυτόματη παρακολούθηση τιμών για ${esc(famTxt)}. Κάθε προορισμός και περίοδος ελέγχεται περίπου μία φορά τη μέρα (το Ναύπλιο έως δύο φορές, μόνο δωμάτια, και για Καθαρά Δευτέρα). Το Airbnb δείχνει σπίτια που χωράνε 5 άτομα με βαθμολογία 4,5 και πάνω. Το Google Hotels δείχνει ξενοδοχεία με 4+ και συγκεντρώνει τιμές από Booking, Expedia και άλλα sites.</p>
   ${gs.length ? `<div class="grid">${gs.map(hotelCard).join("")}</div>` : `<div class="empty">Δεν υπάρχουν ακόμα αποτελέσματα διαμονής. Θα εμφανιστούν μετά την επόμενη σάρωση.</div>`}
   <h2 class="section-title">Γρήγορη αναζήτηση δωματίων για ${NPAX} άτομα</h2>
   <div class="filters">
@@ -439,13 +447,15 @@ function renderTop(m){
   const abF = fl.slice(0,12);
   const pk = D.rss.filter(p=>!p.tags.luxury).slice(0,6);
   const combos = D.hotels.filter(h=>h.combo_total).sort((a,b)=>DEAL_RANK[b.deal]-DEAL_RANK[a.deal]||a.combo_total-b.combo_total).slice(0,9);
-  const hot = groupStays(D.hotels.filter(h=>!h.combo_total)).sort((a,b)=>DEAL_RANK[b.best.deal]-DEAL_RANK[a.best.deal]||a.best.total/a.best.nights-b.best.total/b.best.nights).slice(0,6);
+  const hot = groupStays(D.hotels.filter(h=>!h.combo_total&&!h.rooms_only)).sort((a,b)=>DEAL_RANK[b.best.deal]-DEAL_RANK[a.best.deal]||a.best.total/a.best.nights-b.best.total/b.best.nights).slice(0,6);
+  const naf = D.hotels.filter(h=>h.rooms_only).sort((a,b)=>DEAL_RANK[b.deal]-DEAL_RANK[a.deal]||a.total/a.nights-b.total/b.nights).slice(0,6);
   m.innerHTML = `
-    <h2 class="section-title">🧩 Πακέτα πτήση + διαμονή από Αθήνα</h2>
-    ${combos.length?`<p class="muted" style="font-size:13px">Οι καλύτερες τιμές πτήσεων συνδυασμένες με το φθηνότερο καλό σπίτι στο Airbnb για τις ίδιες ημερομηνίες.</p><div class="grid">${combos.map(hotelCard).join("")}</div>`:`<div class="empty">Οι συνδυασμοί πτήση + διαμονή θα εμφανιστούν καθώς συμπληρώνονται οι αναζητήσεις (μέσα στις επόμενες ώρες).</div>`}
+    <h2 class="section-title">🧩 Ολοκληρωμένες προτάσεις: πτήση + διαμονή από Αθήνα</h2>
+    ${combos.length?`<p class="muted" style="font-size:13px">Για κάθε προορισμό και περίοδο: η φθηνότερη πτήση με επιστροφή από Αθήνα για ${NPAX} άτομα (όλες οι εταιρείες μέσω Google Flights και Ryanair) μαζί με το φθηνότερο καλό σπίτι στο Airbnb για τις ίδιες ημερομηνίες. Ανοίξτε «Όλες οι αεροπορικές» για τις υπόλοιπες εταιρείες.</p><div class="grid">${combos.map(hotelCard).join("")}</div>`:`<div class="empty">Οι συνδυασμοί πτήση + διαμονή θα εμφανιστούν καθώς συμπληρώνονται οι αναζητήσεις (μέσα στις επόμενες ώρες).</div>`}
     <h2 class="section-title">✈️ Αεροπορικά από Αθήνα με επιστροφή, για ${NPAX} άτομα</h2>
     ${abF.length?`<div class="grid">${abF.map(flightCard).join("")}</div>`:`<div class="empty">Καμία πτήση κάτω από ${eur(S.budget)}.</div>`}
-    ${hot.length?`<h2 class="section-title">🏨 Δωμάτια & σπίτια για ${NPAX} άτομα</h2><div class="grid">${hot.map(hotelCard).join("")}</div>`:""}
+    ${naf.length?`<h2 class="section-title">🏛️ Ναύπλιο · μόνο δωμάτια, οι καλύτερες τιμές</h2><div class="grid">${naf.map(h=>hotelCard(h)).join("")}</div>`:`<h2 class="section-title">🏛️ Ναύπλιο · μόνο δωμάτια</h2><div class="empty">Οι τιμές δωματίων για το Ναύπλιο θα εμφανιστούν μετά τις επόμενες σαρώσεις.</div>`}
+    ${hot.length?`<h2 class="section-title">🏨 Δωμάτια & σπίτια εξωτερικού για ${NPAX} άτομα</h2><div class="grid">${hot.map(hotelCard).join("")}</div>`:""}
     ${pk.length?`<h2 class="section-title">🏷️ Έτοιμες προσφορές από Αθήνα</h2><div class="grid">${pk.map(pkgCard).join("")}</div>`:""}`;
 }
 

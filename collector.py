@@ -4,14 +4,13 @@
 
 Πηγές:
   * Ryanair fare finder (δημόσιο API): ναύλοι μετ' επιστροφής από/προς Αθήνα (ATH)
-    προς όλους τους προορισμούς, Ελλάδα και εξωτερικό, για τις σχολικές αργίες.
-  * RSS sites προσφορών (HolidayPirates, Travelzoo, Fly4free κ.ά.): πακέτα,
-    ξενοδοχεία, αεροπορικά.
+    προς τους επιλεγμένους προορισμούς εξωτερικού, για τις σχολικές αργίες.
+  * RSS (Fly4free): προσφορές με αναχώρηση από Αθήνα.
   * scrapers.py (Playwright): Google Flights (όλες οι αεροπορικές),
-    Airbnb και Google Hotels για 2 ενήλικες + 3 παιδιά.
+    Airbnb και Google Hotels για 2 ενήλικες + 3 παιδιά. Για το Ναύπλιο μόνο δωμάτια.
 
 Κάθε εκτέλεση αποθηκεύει τις τιμές σε SQLite (ιστορικό) και γράφει το
-site/data.js που διαβάζει η ιστοσελίδα. Τρέχει κάθε 3 ώρες μέσω Task Scheduler.
+site/data.js που διαβάζει η ιστοσελίδα. Τρέχει κάθε ώρα στο GitHub Actions.
 
     python collector.py              # πλήρης συλλογή
     python collector.py --no-scrape  # μόνο Ryanair + RSS (γρήγορα)
@@ -40,14 +39,29 @@ LOG_PATH = DATA_DIR / "collector.log"
 
 _DEST = CFG.get("destinations", {})
 ALLOWED_CC = {c.lower() for c in _DEST.get("countries", [])}
-LONDON_AIRPORTS = set(_DEST.get("london_airports", []))
+EXCLUDED_AIRPORTS = set(_DEST.get("excluded_airports", []))
+# Ηνωμένο Βασίλειο: εμφανίζεται ως Αγγλία / Σκωτία / Ουαλία (η Β. Ιρλανδία εξαιρείται στο config)
+UK_NATIONS = {
+    "Σκωτία": {"EDI", "GLA", "PIK", "ABZ", "INV", "DND", "SYY", "KOI", "LSI", "WIC", "BEB", "ILY", "CAL"},
+    "Ουαλία": {"CWL", "VLY"},
+}
 
 
 def dest_allowed(cc, iata):
-    """Μόνο οι επιλεγμένες χώρες εξωτερικού (και από το Ηνωμένο Βασίλειο μόνο Λονδίνο)."""
+    """Μόνο οι επιλεγμένες χώρες εξωτερικού (χωρίς τα εξαιρούμενα αεροδρόμια)."""
     if not ALLOWED_CC:
         return True
-    return (cc or "").lower() in ALLOWED_CC or iata in LONDON_AIRPORTS
+    return (cc or "").lower() in ALLOWED_CC and iata not in EXCLUDED_AIRPORTS
+
+
+def country_label(cc, iata, default):
+    """Όνομα χώρας για εμφάνιση· το ΗΒ σπάει σε Αγγλία / Σκωτία / Ουαλία."""
+    if (cc or "").lower() != "gb":
+        return default
+    for nation, airports in UK_NATIONS.items():
+        if iata in airports:
+            return nation
+    return "Αγγλία"
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/130.0 Safari/537.36")
 REFRESH_HOURS = 1
@@ -269,7 +283,8 @@ def collect_ryanair(con):
                 pp = float(sm["price"]["value"])
                 prev = (sm.get("previousPrice") or {}).get("value")
                 dest = arr["iataCode"]
-                if not dest_allowed(arr.get("city", {}).get("countryCode") or arr.get("countryCode"), dest):
+                dest_cc = arr.get("city", {}).get("countryCode") or arr.get("countryCode")
+                if not dest_allowed(dest_cc, dest):
                     continue
                 items.append(dict(
                     kind="flight", source="Ryanair",
@@ -278,9 +293,9 @@ def collect_ryanair(con):
                     origin=origin, origin_name=ob["departureAirport"]["name"],
                     dest=dest, dest_name=arr["name"],
                     city=arr.get("city", {}).get("name") or arr["name"],
-                    country=arr["countryName"],
-                    cc=arr.get("city", {}).get("countryCode"),
-                    region="gr" if arr.get("city", {}).get("countryCode") == "gr" else "abroad",
+                    country=country_label(dest_cc, dest, arr["countryName"]),
+                    cc=dest_cc,
+                    region="gr" if dest_cc == "gr" else "abroad",
                     out_dt=ob["departureDate"], out_arr=ob["arrivalDate"],
                     in_dt=ib["departureDate"], in_arr=ib["arrivalDate"],
                     out_fn=ob.get("flightNumber"), in_fn=ib.get("flightNumber"),
@@ -333,7 +348,11 @@ DEST_WORDS = [
     "spain", "spanien", "hiszpani*", "barcelona", "madrid", "mallorca", "majorca", "malaga",
     "valencia", "seville", "sevilla", "ibiza", "tenerife", "canary", "canaries",
     "portugal", "portugali*", "lisbon", "lissabon", "porto", "madeira", "algarve", "faro",
-    "london", "londyn", "netherlands", "holland", "amsterdam", "eindhoven",
+    "london", "londyn", "england", "anglia", "scotland", "schottland", "szkocj*", "wales",
+    "uk", "united kingdom", "britain", "manchester", "liverpool", "birmingham", "bristol",
+    "edinburgh", "glasgow", "cardiff", "netherlands", "holland", "amsterdam", "eindhoven",
+    "rotterdam", "switzerland", "schweiz", "szwajcari*", "swiss", "zurich", "zürich", "geneva",
+    "genf", "basel", "bern", "lucerne", "interlaken",
     "norway", "norwegen", "norwegi*", "oslo", "bergen", "finland", "finnland", "finlandi*",
     "helsinki", "lapland", "lappland", "rovaniemi", "sweden", "schweden", "szwecj*", "stockholm",
     "gothenburg", "france", "frankreich", "francj*", "paris", "paryż", "disneyland",
@@ -341,8 +360,9 @@ DEST_WORDS = [
     "venice", "naples", "neapel", "sicily", "sardinia", "bologna", "pisa", "malta",
     "usa", "united states", "new york", "nowy jork", "orlando", "miami", "los angeles",
     "san francisco", "las vegas", "boston", "chicago", "florida",
-    "ισπανία", "πορτογαλία", "λονδίνο", "ολλανδία", "νορβηγία", "φινλανδία", "σουηδία",
-    "γαλλία", "ιταλία", "μάλτα", "αμερική", "ηπα",
+    "ισπανία", "πορτογαλία", "λονδίνο", "αγγλία", "σκωτία", "ουαλία", "βρετανία", "εδιμβούργο",
+    "μάντσεστερ", "ολλανδία", "άμστερνταμ", "ελβετία", "ζυρίχη", "γενεύη", "νορβηγία",
+    "φινλανδία", "σουηδία", "γαλλία", "ιταλία", "μάλτα", "αμερική", "ηπα",
 ]
 # μόνο αναχωρήσεις (και επιστροφές) από Αθήνα
 FROM_GREECE = ["from athens", "ab athen", "z aten", "από αθήνα"]
