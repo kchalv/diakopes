@@ -1,0 +1,22 @@
+name: Ξυπνητήρι
+
+# Ο προγραμματισμός (cron) του GitHub σε δημόσια αποθετήρια συχνά καθυστερεί ή παραλείπεται.
+# Ένα εξωτερικό «ξυπνητήρι» (cloud ρουτίνα Claude, κάθε 5 ώρες) κάνει ένα κενό commit
+# στον κλάδο claude/wake. Αυτό το workflow το πιάνει και ξεκινά τη σάρωση στον κλάδο main.
+# Το GITHUB_TOKEN επιτρέπεται να προκαλέσει workflow_dispatch, οπότε δεν χρειάζεται άλλο μυστικό.
+on:
+  push:
+    branches: ["claude/wake"]
+
+permissions:
+  actions: write
+
+jobs:
+  wake:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Εκκίνηση σάρωσης
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run scan.yml -R "${{ github.repository }}" --ref main -f source=wake

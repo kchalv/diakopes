@@ -1,23 +1,54 @@
 name: Σάρωση προσφορών
 
-# Κάθε ώρα: σάρωση τιμών, email για εξαιρετικές προσφορές, ανανέωση σελίδας.
+# Σάρωση τιμών, email για εξαιρετικές προσφορές, ανανέωση σελίδας.
+# Στόχος: περίπου κάθε 5 ώρες. Ξυπνά από (α) το εξωτερικό ξυπνητήρι (wake.yml, κάθε 5 ώρες),
+# (β) το cron του GitHub ως εφεδρεία (συχνά καθυστερεί ή παραλείπεται), (γ) χειροκίνητα.
+# Η εργασία «gate» αποτρέπει δεύτερη σάρωση μέσα σε 3,5 ώρες, εκτός αν ξεκίνησε χειροκίνητα.
 # Το ιστορικό τιμών (prices.db) φυλάγεται στον κλάδο "data" (μόνο η τελευταία έκδοση).
 on:
   schedule:
     - cron: "17 * * * *"
   workflow_dispatch:
+    inputs:
+      source:
+        description: "Ποιος ξύπνησε τη σάρωση (κενό = χειροκίνητα, τρέχει πάντα)"
+        required: false
+        default: ""
 
 permissions:
   contents: write
   pages: write
   id-token: write
+  actions: read
 
 concurrency:
   group: scan
   cancel-in-progress: false
 
 jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    outputs:
+      skip: ${{ steps.check.outputs.skip }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MIN_GAP_MIN: "210"
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -z "${{ github.event.inputs.source }}" ]; then
+            echo "Χειροκίνητη εκκίνηση: τρέχει πάντα"; echo "skip=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          last=$(gh run list -R "${{ github.repository }}" -w scan.yml -s success -L 1 --json updatedAt -q '.[0].updatedAt')
+          if [ -z "$last" ]; then echo "Καμία προηγούμενη σάρωση"; echo "skip=false" >> "$GITHUB_OUTPUT"; exit 0; fi
+          age=$(( ($(date +%s) - $(date -d "$last" +%s)) / 60 ))
+          echo "Τελευταία επιτυχής σάρωση πριν από $age λεπτά (όριο $MIN_GAP_MIN)"
+          if [ "$age" -lt "$MIN_GAP_MIN" ]; then echo "skip=true" >> "$GITHUB_OUTPUT"; else echo "skip=false" >> "$GITHUB_OUTPUT"; fi
+
   scan:
+    needs: gate
+    if: needs.gate.outputs.skip != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment:
