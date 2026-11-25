@@ -4,7 +4,8 @@
 
 Αεροπορικά μόνο από Αθήνα, για ταξίδι μέσα στο διάστημα 20/6 – 5/9 (config.json → travel),
 προς Ισπανία, Ιταλία, Ελβετία, Δανία, Πορτογαλία, Αγγλία, Σκωτία, Γαλλία και ΗΠΑ.
-Χωρίς τις αεροπορικές του config.json → excluded_airlines (Ryanair, easyJet, Sky Express).
+Χωρίς τις αεροπορικές του config.json → excluded_airlines (Ryanair, easyJet, Sky Express)
+και μόνο απευθείας πτήσεις (config.json → nonstop_only).
 
 Πηγές:
   * scrapers.py (Playwright): Google Flights (όλες οι υπόλοιπες αεροπορικές) και, για τις
@@ -586,6 +587,7 @@ def main():
         family=FAMILY, n_pax=N_PAX, extras=flight_extras(),
         origins=CFG["origins"], windows=windows,
         excluded_airlines=CFG.get("excluded_airlines", []),
+        nonstop_only=bool(CFG.get("nonstop_only")),
         budget_default=CFG.get("max_family_budget_eur_default", 4000),
         n_scans=n_scans, first_scan=first_scan,
         flights=flights, rss=rss, hotels=hotels,

@@ -190,7 +190,7 @@ const badge = d => `<span class="badge ${DEAL[d][0]}">${DEAL[d][1]}</span>`;
 const famTxt = `${F.adults} ενήλικες${F.adult_ages?` (${F.adult_ages.join(", ")} ετών)`:""} + ${AGES.length} παιδιά (${AGES.join(", ")} ετών)`;
 const NO_AIR = (D.excluded_airlines||[]).join(", ");
 const PERIOD = D.windows.length ? `${new Date(D.windows[0].out_from).toLocaleDateString("el-GR",{day:"numeric",month:"long"})} έως και ${new Date(D.windows[D.windows.length-1].in_to).toLocaleDateString("el-GR",{day:"numeric",month:"long",year:"numeric"})}` : "";
-$("#sub").textContent = `Αεροπορικά από Αθήνα με επιστροφή${PERIOD?`, ${PERIOD}`:""}, για ${famTxt}${NO_AIR?`, χωρίς ${NO_AIR}`:""}. Στις εβδομάδες με έκπτωση στα αεροπορικά, πακέτο με διαμονή στο ίδιο μέρος και τις ίδιες ημερομηνίες. Με ιστορικό τιμών.`;
+$("#sub").textContent = `${D.nonstop_only?"Απευθείας αεροπορικά":"Αεροπορικά"} από Αθήνα με επιστροφή${PERIOD?`, ${PERIOD}`:""}, για ${famTxt}${NO_AIR?`, χωρίς ${NO_AIR}`:""}. Στις εβδομάδες με έκπτωση στα αεροπορικά, πακέτο με διαμονή στο ίδιο μέρος και τις ίδιες ημερομηνίες. Με ιστορικό τιμών.`;
 const gen = new Date(D.generated*1000), next = new Date(D.next_update*1000);
 const fmtDT = d => d.toLocaleString("el-GR",{weekday:"short",day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});
 $("#meta").innerHTML = [
@@ -371,7 +371,7 @@ function renderFlights(m){
     <label>Ταξινόμηση<select id="fSort"><option value="deal" ${S.sort==="deal"?"selected":""}>Καλύτερη προσφορά</option><option value="price" ${S.sort==="price"?"selected":""}>Φθηνότερη</option></select></label>
     <label class="check"><input id="fDeals" type="checkbox" ${S.onlyDeals?"checked":""}> Μόνο προσφορές</label>
   </div><div id="fl"></div>
-  <p class="muted" style="font-size:12.5px">* Οικογένεια = ναύλος × ${NPAX} άτομα + εκτίμηση ${eur(D.extras)} για 2 βαλίτσες και θέσεις (μετ' επιστροφής). Μία αναζήτηση ανά προορισμό και εβδομάδα (7 νύχτες), μέσω Google Flights${NO_AIR?`, χωρίς ${esc(NO_AIR)} (ούτε ως ένα από τα σκέλη)`:""}. Η τελική τιμή φαίνεται στην κράτηση.</p>`;
+  <p class="muted" style="font-size:12.5px">* Οικογένεια = ναύλος × ${NPAX} άτομα + εκτίμηση ${eur(D.extras)} για 2 βαλίτσες και θέσεις (μετ' επιστροφής). Μία αναζήτηση ανά προορισμό και εβδομάδα (7 νύχτες), μέσω Google Flights${D.nonstop_only?", μόνο απευθείας πτήσεις (προορισμοί ή εβδομάδες χωρίς απευθείας πτήση δεν εμφανίζονται)":""}${NO_AIR?`, χωρίς ${esc(NO_AIR)} (ούτε ως ένα από τα σκέλη)`:""}. Η τελική τιμή φαίνεται στην κράτηση.</p>`;
   bindSegs(m);
   $("#fCountry").onchange=e=>{S.country=e.target.value;saveS();drawFl();};
   $("#fWin").onchange=e=>{S.win=e.target.value;saveS();drawFl();};

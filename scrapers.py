@@ -50,11 +50,13 @@ def _s(num, text):
     return _fld(num, 2, text.encode())
 
 
-def gf_tfs(o, d, out, inn, pax):
+def gf_tfs(o, d, out, inn, pax, nonstop=False):
     """Κωδικοποίηση αναζήτησης Google Flights (protobuf) με επιβάτες.
-    pax: 1=ενήλικας(12+), 2=παιδί(2-11), 3=βρέφος σε θέση, 4=βρέφος στην αγκαλιά."""
+    pax: 1=ενήλικας(12+), 2=παιδί(2-11), 3=βρέφος σε θέση, 4=βρέφος στην αγκαλιά.
+    nonstop: φίλτρο «χωρίς στάση» (μέγιστες στάσεις = 0) σε κάθε σκέλος."""
     def leg(date, a, b):
-        return _s(2, date) + _fld(13, 2, _s(2, a)) + _fld(14, 2, _s(2, b))
+        return (_s(2, date) + (_fld(5, 0, 0) if nonstop else b"")
+                + _fld(13, 2, _s(2, a)) + _fld(14, 2, _s(2, b)))
     msg = _fld(3, 2, leg(out, o, d)) + _fld(3, 2, leg(inn, d, o))
     for p in pax:
         msg += _fld(8, 0, p)
@@ -146,15 +148,35 @@ def _to24(t):
     return dt.datetime.strptime(t.replace("\u202f", " ").strip(), "%I:%M %p").strftime("%H:%M")
 
 
-def scrape_gflights(br, o, d, out, inn, pax):
-    url = (f"https://www.google.com/travel/flights/search?tfs={gf_tfs(o, d, out.isoformat(), inn.isoformat(), pax)}"
+def scrape_gflights(br, o, d, out, inn, pax, nonstop=False):
+    url = (f"https://www.google.com/travel/flights/search?tfs={gf_tfs(o, d, out.isoformat(), inn.isoformat(), pax, nonstop)}"
            f"&hl=en&gl=GR&curr=EUR")
     br.goto(url)
     br.google_consent()
-    try:
-        br.page.wait_for_selector('[aria-label^="From "]', timeout=25000)
-    except Exception:  # noqa: BLE001
-        raise RuntimeError(f"καμία πτήση · {_why(br)}") from None
+    # Τρεις εκβάσεις: λίστα πτήσεων, «δεν υπάρχουν πτήσεις» (π.χ. καμία απευθείας: κενή λίστα,
+    # όχι σφάλμα), ή προσωρινό σφάλμα του Google («Oops, something went wrong»: νέα προσπάθεια).
+    # Το «δεν υπάρχουν πτήσεις» βγαίνει μερικές φορές και κατά λάθος, γι' αυτό γίνεται δεκτό
+    # μόνο αν το δείξει δύο φορές.
+    state, nones = "timeout", 0
+    for attempt in range(4):
+        try:
+            state = br.page.wait_for_function("""() => {
+                if (document.querySelector('[aria-label^="From "]')) return 'ok';
+                const t = document.body ? document.body.innerText : '';
+                if (/something went wrong/i.test(t)) return 'oops';
+                if (/No (nonstop )?flights found|No options matching/i.test(t)) return 'none';
+                return false; }""", timeout=25000).json_value()
+        except Exception:  # noqa: BLE001
+            state = "timeout"
+        nones += state == "none"
+        if state == "ok" or nones >= 2:
+            break
+        time.sleep(4 + 3 * attempt)
+        br.page.reload(wait_until="domcontentloaded", timeout=60000)
+    if state == "none":
+        return [], url
+    if state != "ok":
+        raise RuntimeError(f"καμία απάντηση ({state}) · {_why(br)}") from None
     time.sleep(1.5)
     try:
         more = br.page.get_by_role("button", name=re.compile(r"more flights", re.I))
@@ -178,8 +200,8 @@ def scrape_gflights(br, o, d, out, inn, pax):
             continue
         seen.add(k)
         res.append(dict(total=price, stops=stops, airline=airline, dep=_to24(m.group(4))))
-    if labels and not res:
-        raise RuntimeError(f"άγνωστη μορφή τιμής: {labels[0][:160]}")
+    if not res:
+        raise RuntimeError(f"άγνωστη μορφή τιμής: {(labels or ['(καμία ετικέτα)'])[0][:160]}")
     res.sort(key=lambda r: (r["total"], r["stops"]))
     return res, url
 
@@ -371,6 +393,7 @@ def run(c, con, ryanair_flights):
     fam = c.FAMILY
     pax = gf_pax(fam)
     sig = pax_sig(fam)
+    nonstop = bool(c.CFG.get("nonstop_only"))
     errors = []
     t0 = time.time()
 
@@ -427,12 +450,14 @@ def run(c, con, ryanair_flights):
     try:
         br = Browser()
         # Google Flights
-        ok = 0
+        ok = none = 0
         for o, r, w, (out, inn) in gf_take:
-            key = f"GF|{o}|{r['iata']}|{w['key']}|{out.isoformat()}|{inn.isoformat()}"
+            # το "|ns" κρατά χωριστό ιστορικό τιμών για τις απευθείας πτήσεις
+            key = f"GF|{o}|{r['iata']}|{w['key']}|{out.isoformat()}|{inn.isoformat()}" + ("|ns" if nonstop else "")
             try:
-                res, url = scrape_gflights(br, o, r["iata"], out, inn, pax)
-                res = [x for x in res if c.airline_allowed(x["airline"])]
+                res, url = scrape_gflights(br, o, r["iata"], out, inn, pax, nonstop)
+                res = [x for x in res if c.airline_allowed(x["airline"])
+                       and not (nonstop and x["stops"])]
                 if res:
                     gf_cache[key] = {"ts": c.NOW, "res": res[:8], "o": o, "r": r, "w": w["key"],
                                      "wl": w["label"], "season": w["season"],
@@ -440,13 +465,16 @@ def run(c, con, ryanair_flights):
                     con.execute("INSERT INTO snapshots VALUES(?,?,?,?,?)",
                                 (key, c.NOW, res[0]["total"] / c.N_PAX, res[0]["total"], "{}"))
                     ok += 1
-                else:  # μόνο εξαιρούμενες αεροπορικές σε αυτή την εβδομάδα
-                    gf_cache.pop(key, None)
+                else:  # μόνο εξαιρούμενες αεροπορικές ή καμία απευθείας σε αυτή την εβδομάδα
+                    # μια πρόσφατη τιμή δεν σβήνεται από ένα μόνο κενό αποτέλεσμα
+                    if c.NOW - gf_cache.get(key, {}).get("ts", 0) > 3 * 86400:
+                        gf_cache.pop(key, None)
+                    none += 1
             except Exception as ex:  # noqa: BLE001
                 errors.append(f"Google Flights {o}-{r['iata']} {out}: {str(ex)[:120]}")
             time.sleep(1.5)
         c.record_run(con, "Google Flights", ok > 0 or not gf_take, ok, "; ".join(errors[-3:]))
-        c.log(f"Google Flights: {ok}/{len(gf_take)} αναζητήσεις OK")
+        c.log(f"Google Flights: {ok}/{len(gf_take)} αναζητήσεις με τιμή, {none} χωρίς κατάλληλη πτήση")
         con.commit()
 
         # Οι πτήσεις όπως είναι τώρα· από αυτές βγαίνουν οι εβδομάδες με έκπτωση για διαμονή
@@ -524,11 +552,12 @@ def build_flights(c, con, cache):
     pax = gf_pax(c.FAMILY)
     extras = c.flight_extras()
     live = {w["key"] for w in c.flight_windows()}
-    # μόνο τρέχουσες περίοδοι/προορισμοί και μόνο επιτρεπόμενες αεροπορικές
+    nonstop = bool(c.CFG.get("nonstop_only"))
+    # μόνο τρέχουσες περίοδοι/προορισμοί, επιτρεπόμενες αεροπορικές και (αν ζητείται) απευθείας
     rows = {}
     for key, v in cache.items():
-        res = [x for x in v["res"] if c.airline_allowed(x["airline"])]
-        if (res and v["w"] in live and v["o"] in c.CFG["origins"]
+        res = [x for x in v["res"] if c.airline_allowed(x["airline"]) and not (nonstop and x["stops"])]
+        if (res and v["w"] in live and key.endswith("|ns") == nonstop and v["o"] in c.CFG["origins"]
                 and c.dest_allowed(v["r"]["cc"], v["r"]["iata"])):
             rows[key] = {**v, "res": res}
     peers = {}
@@ -555,7 +584,7 @@ def build_flights(c, con, cache):
             pp=round(pp, 2), prev_pp=None, family_fare=total, family_total=round(total + extras),
             options=v["res"][:6], fetched=v["ts"],
             book_url=(f"https://www.google.com/travel/flights/search?tfs="
-                      f"{gf_tfs(v['o'], r['iata'], v['out'], v['in'], pax)}&hl=el&curr=EUR"),
+                      f"{gf_tfs(v['o'], r['iata'], v['out'], v['in'], pax, nonstop)}&hl=el&curr=EUR"),
             score=score, deal=label, reasons=reasons,
             hist=[[ts, p] for ts, p in h][-60:], hist_n=len(prev),
             hist_min=min(prev) if prev else None,
