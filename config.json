@@ -67,12 +67,11 @@
     "page_url": "https://kchalv.github.io/diakopes/"
   },
   "scrape": {
-    "_note": "Scraping με browser (Playwright). Κάθε εκτέλεση κάνει ένα μέρος των αναζητήσεων κυκλικά, ώστε όλες να ανανεώνονται περίπου μία φορά τη μέρα χωρίς υπερβολικό φόρτο στα sites.",
+    "_note": "Scraping με browser (Playwright). Κάθε σάρωση κάνει ΟΛΕΣ τις αναζητήσεις πτήσεων (κάθε προορισμός × κάθε εβδομάδα) και διαμονή για όλες τις εβδομάδες με έκπτωση πτήσεων.",
     "enabled": true,
     "gflights_origins": [
       "ATH"
     ],
-    "gflights_per_run": 30,
     "gflights_routes": [
       {
         "iata": "BCN",
@@ -196,7 +195,7 @@
       }
     ],
     "stays_per_run": {
-      "airbnb": 10,
+      "airbnb": 80,
       "google_hotels": 3
     },
     "stays_windows": [

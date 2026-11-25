@@ -13,8 +13,8 @@ Scrapers με πραγματικό browser (Playwright/Chromium) για πηγέ
 αναζήτηση απλώς παραλείπεται και καταγράφεται. Booking.com και Skyscanner
 δεν περιλαμβάνονται γιατί μπλοκάρουν τους αυτοματοποιημένους browsers.
 
-Κάθε εκτέλεση κάνει ένα κομμάτι των αναζητήσεων (κυκλικά), ώστε ο φόρτος να
-είναι μικρός και κάθε αναζήτηση να ανανεώνεται περίπου μία φορά τη μέρα.
+Κάθε σάρωση κάνει ΟΛΕΣ τις αναζητήσεις πτήσεων (κάθε προορισμός × κάθε εβδομάδα). Στο
+GitHub Actions μοιράζονται σε παράλληλα τμήματα (gf_shard), το καθένα σε δικό του server.
 """
 import base64
 import datetime as dt
@@ -429,9 +429,108 @@ def stay_targets(c, S, flights):
     return out
 
 
+# ------------------------------------------------- Google Flights: πλήρης σάρωση
+def gf_all_jobs(c):
+    """ΟΛΕΣ οι αναζητήσεις πτήσεων μιας σάρωσης: κάθε προορισμός × κάθε εβδομάδα."""
+    S = c.CFG.get("scrape", {})
+    pax = gf_pax(c.FAMILY)
+    # "|ns": χωριστό ιστορικό για απευθείας· "|2": τιμή σε δύο κρατήσεις (gf_groups)
+    suffix = ("|ns" if c.CFG.get("nonstop_only") else "") + ("|2" if len(gf_groups(pax)) > 1 else "")
+    jobs = []
+    for o in S.get("gflights_origins", ["ATH"]):
+        for r in S.get("gflights_routes", []):
+            if r["iata"] == o or not c.dest_allowed(r["cc"], r["iata"]):
+                continue
+            for w in c.flight_windows():
+                rd = rep_dates(c, w)
+                if rd:
+                    out, inn = rd[0].isoformat(), rd[1].isoformat()
+                    jobs.append({"key": f"GF|{o}|{r['iata']}|{w['key']}|{out}|{inn}{suffix}",
+                                 "o": o, "r": r, "w": w["key"], "wl": w["label"],
+                                 "season": w["season"], "out": out, "in": inn})
+    return jobs
+
+
+def gf_scrape_jobs(c, br, jobs):
+    """Εκτελεί τις αναζητήσεις. Όσες αποτύχουν (προσωρινά σφάλματα του Google) ξαναγίνονται
+    σε δεύτερο γύρο. Επιστρέφει μία εγγραφή ανά αναζήτηση με status ok / none / error."""
+    pax = gf_pax(c.FAMILY)
+    nonstop = bool(c.CFG.get("nonstop_only"))
+    recs = {}
+    for rnd in range(2):
+        todo = jobs if rnd == 0 else [j for j in jobs if recs[j["key"]]["status"] == "error"]
+        if rnd and todo:
+            c.log(f"Google Flights: δεύτερη προσπάθεια για {len(todo)} αναζητήσεις")
+            time.sleep(20)
+        for j in todo:
+            try:
+                res, _url = scrape_gflights(br, j["o"], j["r"]["iata"], dt.date.fromisoformat(j["out"]),
+                                            dt.date.fromisoformat(j["in"]), pax, nonstop)
+                res = [x for x in res if c.airline_allowed(x["airline"])
+                       and not (nonstop and x["stops"])]
+                recs[j["key"]] = {**j, "status": "ok" if res else "none", "res": res[:8]}
+            except Exception as ex:  # noqa: BLE001
+                recs[j["key"]] = {**j, "status": "error", "err": str(ex)[:120]}
+            time.sleep(1.5)
+    return list(recs.values())
+
+
+def gf_shard(c, i, n, out_path):
+    """Ένα από τα n παράλληλα τμήματα της σάρωσης πτήσεων (GitHub Actions, χωριστός server
+    το καθένα ώστε να μη μας κόβει το Google). Γράφει τα αποτελέσματα σε αρχείο JSON."""
+    jobs = gf_all_jobs(c)[i::n]
+    t0 = time.time()
+    br = Browser()
+    try:
+        recs = gf_scrape_jobs(c, br, jobs)
+    finally:
+        br.close()
+    os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(recs, f, ensure_ascii=False)
+    n_by = {k: sum(1 for r in recs if r["status"] == k) for k in ("ok", "none", "error")}
+    print(f"Τμήμα {i + 1}/{n}: {len(jobs)} αναζητήσεις σε {time.time() - t0:.0f}s · με τιμή {n_by['ok']}, "
+          f"χωρίς κατάλληλη πτήση {n_by['none']}, σφάλματα {n_by['error']}")
+    for r in recs:
+        if r["status"] == "error":
+            print(f"  σφάλμα {r['o']}-{r['r']['iata']} {r['out']}: {r['err']}")
+
+
+def gf_apply(c, con, cache, jobs, recs, errors):
+    """Περνά τα αποτελέσματα της σάρωσης πτήσεων στην cache και στο ιστορικό τιμών."""
+    by_key = {r["key"]: r for r in recs}
+    ok = none = err = 0
+    for j in jobs:
+        r = by_key.get(j["key"])
+        if r is None or r["status"] == "error":
+            err += 1  # κρατάμε ό,τι ξέραμε· θα ξαναδοκιμαστεί στην επόμενη σάρωση
+            if r is not None and len(errors) < 12:
+                errors.append(f"Google Flights {j['o']}-{j['r']['iata']} {j['out']}: {r['err']}")
+        elif r["status"] == "ok":
+            cache[j["key"]] = {"ts": c.NOW, "res": r["res"], "o": j["o"], "r": j["r"], "w": j["w"],
+                               "wl": j["wl"], "season": j["season"], "out": j["out"], "in": j["in"]}
+            con.execute("INSERT INTO snapshots VALUES(?,?,?,?,?)",
+                        (j["key"], c.NOW, r["res"][0]["total"] / c.N_PAX, r["res"][0]["total"], "{}"))
+            ok += 1
+        else:
+            # Καμία κατάλληλη πτήση. Το Google το λέει μερικές φορές και κατά λάθος, άρα μια τιμή
+            # της προηγούμενης σάρωσης μένει μία φορά ακόμη και σβήνει αν επαναληφθεί.
+            if c.NOW - cache.get(j["key"], {}).get("ts", 0) > 6 * 3600:
+                cache.pop(j["key"], None)
+            none += 1
+    missing = sum(1 for j in jobs if j["key"] not in by_key)
+    if missing:
+        errors.append(f"Google Flights: δεν έτρεξαν {missing} από τις {len(jobs)} αναζητήσεις (απέτυχε τμήμα της σάρωσης)")
+    c.record_run(con, "Google Flights", ok > 0 or not jobs, ok, "; ".join(errors[-3:]))
+    c.log(f"Google Flights: {len(jobs)} αναζητήσεις · με τιμή {ok}, χωρίς κατάλληλη πτήση {none}, σφάλματα {err}")
+    con.commit()
+
+
 # --------------------------------------------------------------------- main
-def run(c, con, ryanair_flights):
-    """c: το module collector (για config, ιστορικό, αξιολόγηση)."""
+def run(c, con, ryanair_flights, gf_recs=None):
+    """c: το module collector (για config, ιστορικό, αξιολόγηση).
+    gf_recs: αποτελέσματα πτήσεων από τα παράλληλα τμήματα (gf_shard)· αν λείπουν, όλες οι
+    αναζητήσεις πτήσεων γίνονται εδώ, η μία μετά την άλλη."""
     S = c.CFG.get("scrape", {})
     if not S.get("enabled"):
         return [], [], []
@@ -441,23 +540,12 @@ def run(c, con, ryanair_flights):
         return [], [], ["Scraping: λείπει το Playwright (pip install playwright && python -m playwright install chromium)"]
 
     fam = c.FAMILY
-    pax = gf_pax(fam)
     sig = pax_sig(fam)
-    nonstop = bool(c.CFG.get("nonstop_only"))
     errors = []
     t0 = time.time()
 
-    # ---- Google Flights jobs: κάθε προορισμός × κάθε εβδομάδα της περιόδου
-    gf_jobs = []
-    for o in S.get("gflights_origins", ["ATH"]):
-        for r in S.get("gflights_routes", []):
-            if r["iata"] == o or not c.dest_allowed(r["cc"], r["iata"]):
-                continue
-            for w in c.flight_windows():
-                rd = rep_dates(c, w)
-                if rd:
-                    gf_jobs.append((o, r, w, rd))
-    gf_take = rotate(con, "gf_ptr", gf_jobs, S.get("gflights_per_run", 24))
+    # ---- Google Flights: σε κάθε σάρωση ΟΛΟΙ οι προορισμοί × ΟΛΕΣ οι εβδομάδες
+    gf_jobs = gf_all_jobs(c)
 
     # ---- τυχόν μέρη "priority" στο config (μόνο δωμάτια): δικές τους περίοδοι, cache 12 ωρών
     wanted = S.get("stays_windows", ["summer"])
@@ -471,20 +559,20 @@ def run(c, con, ryanair_flights):
                 rd = rep_dates(c, w)
                 if rd:
                     prio_jobs.append((p, w, rd, 12))
-    per = S.get("stays_per_run", {"airbnb": 10, "google_hotels": 6})
+    per = S.get("stays_per_run", {"airbnb": 80, "google_hotels": 6})
 
     gf_cache = load_cache(con, "gf_cache")
     ab_cache = load_cache(con, "ab_cache")
     gh_cache = load_cache(con, "gh_cache")
 
     def stay_jobs(cache, prefix, n):
-        """Διαμονές για τις εβδομάδες με έκπτωση πτήσεων (όσες δεν ελέγχθηκαν το τελευταίο
-        24ωρο, έως n ανά σάρωση) και μετά τα μέρη "priority"."""
+        """Διαμονές για ΟΛΕΣ τις εβδομάδες με έκπτωση πτήσεων σε κάθε σάρωση (το όριο n και
+        η cache 3 ωρών είναι μόνο δικλείδες ασφαλείας) και μετά τα μέρη "priority"."""
         def stale(job):
             p, w, (ci, co), hours = job
             v = cache.get(f"{prefix}|{p['q']}|{ci.isoformat()}|{co.isoformat()}")
             return not (v and v.get("pax") == sig and c.NOW - v["ts"] < hours * 3600)
-        targets = [(p, w, rd, 24) for p, w, rd, _f, _why in stay_targets(c, S, gf_flights)]
+        targets = [(p, w, rd, 3) for p, w, rd, _f, _why in stay_targets(c, S, gf_flights)]
         return [j for j in targets if stale(j)][:n] + [j for j in prio_jobs if stale(j)]
 
     def stay_entry(p, w, ci, co, res, shown, url):
@@ -499,33 +587,9 @@ def run(c, con, ryanair_flights):
     br = None
     try:
         br = Browser()
-        # Google Flights
-        ok = none = 0
-        for o, r, w, (out, inn) in gf_take:
-            # το "|ns" κρατά χωριστό ιστορικό τιμών για τις απευθείας πτήσεις
-            key = f"GF|{o}|{r['iata']}|{w['key']}|{out.isoformat()}|{inn.isoformat()}" + ("|ns" if nonstop else "") + ("|2" if len(gf_groups(pax)) > 1 else "")
-            try:
-                res, url = scrape_gflights(br, o, r["iata"], out, inn, pax, nonstop)
-                res = [x for x in res if c.airline_allowed(x["airline"])
-                       and not (nonstop and x["stops"])]
-                if res:
-                    gf_cache[key] = {"ts": c.NOW, "res": res[:8], "o": o, "r": r, "w": w["key"],
-                                     "wl": w["label"], "season": w["season"],
-                                     "out": out.isoformat(), "in": inn.isoformat()}
-                    con.execute("INSERT INTO snapshots VALUES(?,?,?,?,?)",
-                                (key, c.NOW, res[0]["total"] / c.N_PAX, res[0]["total"], "{}"))
-                    ok += 1
-                else:  # μόνο εξαιρούμενες αεροπορικές ή καμία απευθείας σε αυτή την εβδομάδα
-                    # μια πρόσφατη τιμή δεν σβήνεται από ένα μόνο κενό αποτέλεσμα
-                    if c.NOW - gf_cache.get(key, {}).get("ts", 0) > 3 * 86400:
-                        gf_cache.pop(key, None)
-                    none += 1
-            except Exception as ex:  # noqa: BLE001
-                errors.append(f"Google Flights {o}-{r['iata']} {out}: {str(ex)[:120]}")
-            time.sleep(1.5)
-        c.record_run(con, "Google Flights", ok > 0 or not gf_take, ok, "; ".join(errors[-3:]))
-        c.log(f"Google Flights: {ok}/{len(gf_take)} αναζητήσεις με τιμή, {none} χωρίς κατάλληλη πτήση")
-        con.commit()
+        if gf_recs is None:
+            gf_recs = gf_scrape_jobs(c, br, gf_jobs)
+        gf_apply(c, con, gf_cache, gf_jobs, gf_recs, errors)
 
         # Οι πτήσεις όπως είναι τώρα· από αυτές βγαίνουν οι εβδομάδες με έκπτωση για διαμονή
         gf_flights = build_flights(c, con, gf_cache)

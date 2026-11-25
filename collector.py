@@ -19,6 +19,10 @@ site/data.js που διαβάζει η ιστοσελίδα. Τρέχει κά�
 
     python collector.py              # πλήρης συλλογή
     python collector.py --no-scrape  # χωρίς browser: RSS + όσα είναι ήδη αποθηκευμένα
+    python collector.py --gf-shard 0/5 --out gf/0.json   # ένα από 5 τμήματα των πτήσεων
+    python collector.py --gf-results gf                   # σάρωση με έτοιμα αποτελέσματα πτήσεων
+
+Κάθε σάρωση ελέγχει ΟΛΟΥΣ τους προορισμούς και ΟΛΕΣ τις εβδομάδες (όχι ένα μέρος κυκλικά).
 """
 import datetime as dt
 import html
@@ -539,6 +543,13 @@ def collect_rss(con):
 
 # --------------------------------------------------------------------- main
 def main():
+    if "--gf-shard" in sys.argv:  # μόνο ένα τμήμα των αναζητήσεων πτήσεων, σε αρχείο JSON
+        i, n = map(int, sys.argv[sys.argv.index("--gf-shard") + 1].split("/"))
+        if str(BASE) not in sys.path:
+            sys.path.insert(0, str(BASE))
+        import scrapers
+        scrapers.gf_shard(sys.modules[__name__], i, n, sys.argv[sys.argv.index("--out") + 1])
+        return 0
     log("=== Έναρξη συλλογής ===")
     con = db()
     errors = []
@@ -568,7 +579,13 @@ def main():
             hotels = scrapers.build_stays(me, con, scrapers.load_cache(con, "ab_cache"),
                                           scrapers.load_cache(con, "gh_cache"), flights + gf_flights)
         else:
-            gf_flights, hotels, errs = scrapers.run(me, con, flights)
+            gf_recs = None
+            if "--gf-results" in sys.argv:  # αποτελέσματα πτήσεων από τα παράλληλα τμήματα
+                gf_recs = []
+                for f in sorted(Path(sys.argv[sys.argv.index("--gf-results") + 1]).glob("*.json")):
+                    gf_recs += json.loads(f.read_text(encoding="utf-8"))
+                log(f"Αποτελέσματα πτήσεων από τμήματα: {len(gf_recs)}")
+            gf_flights, hotels, errs = scrapers.run(me, con, flights, gf_recs)
             errors += errs
         flights = flights + gf_flights
     except Exception:  # noqa: BLE001

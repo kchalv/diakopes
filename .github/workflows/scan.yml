@@ -47,14 +47,49 @@ jobs:
           echo "Τελευταία επιτυχής σάρωση πριν από $age λεπτά (όριο $MIN_GAP_MIN)"
           if [ "$age" -lt "$MIN_GAP_MIN" ]; then echo "skip=true" >> "$GITHUB_OUTPUT"; else echo "skip=false" >> "$GITHUB_OUTPUT"; fi
 
-  scan:
+  # Όλες οι αναζητήσεις πτήσεων (κάθε προορισμός × κάθε εβδομάδα) σε κάθε σάρωση, μοιρασμένες
+  # σε παράλληλα τμήματα· το καθένα τρέχει σε δικό του server, ώστε να μη μας κόβει το Google.
+  flights:
     needs: gate
     if: needs.gate.outputs.skip != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4]
+    env:
+      TZ: Europe/Athens
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Εξαρτήσεις
+        run: |
+          pip install -r requirements.txt
+          python -m playwright install --with-deps chromium
+
+      - name: Αναζητήσεις πτήσεων (τμήμα ${{ matrix.shard }})
+        run: python collector.py --gf-shard ${{ matrix.shard }}/5 --out gf/shard-${{ matrix.shard }}.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gf-${{ matrix.shard }}
+          path: gf/
+          retention-days: 1
+
+  scan:
+    needs: [gate, flights]
+    # τρέχει ακόμη κι αν αποτύχει κάποιο τμήμα πτήσεων (χρησιμοποιεί όσα ολοκληρώθηκαν)
+    if: ${{ !cancelled() && needs.gate.outputs.skip != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment:
       name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
     env:
       TZ: Europe/Athens
     steps:
@@ -80,10 +115,18 @@ jobs:
             echo "Δεν υπάρχει ακόμη ιστορικό"
           fi
 
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: gf-*
+          path: gf
+          merge-multiple: true
+
       - name: Σάρωση + email
         env:
           DIAKOPES_EMAIL: ${{ secrets.DIAKOPES_EMAIL }}
-        run: python collector.py
+        run: |
+          mkdir -p gf
+          python collector.py --gf-results gf
 
       - name: Αποθήκευση ιστορικού
         if: ${{ hashFiles('data/prices.db') != '' }}
@@ -101,5 +144,15 @@ jobs:
         with:
           path: site
 
+      # Η δημοσίευση αποτυγχάνει πού και πού από προσωρινό σφάλμα του GitHub: δεύτερη προσπάθεια.
       - id: deploy
+        uses: actions/deploy-pages@v4
+        continue-on-error: true
+
+      - name: Αναμονή πριν τη δεύτερη προσπάθεια δημοσίευσης
+        if: steps.deploy.outcome == 'failure'
+        run: sleep 60
+
+      - name: Δημοσίευση (δεύτερη προσπάθεια)
+        if: steps.deploy.outcome == 'failure'
         uses: actions/deploy-pages@v4

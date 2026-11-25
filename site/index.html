@@ -371,7 +371,7 @@ function renderFlights(m){
     <label>Ταξινόμηση<select id="fSort"><option value="deal" ${S.sort==="deal"?"selected":""}>Καλύτερη προσφορά</option><option value="price" ${S.sort==="price"?"selected":""}>Φθηνότερη</option></select></label>
     <label class="check"><input id="fDeals" type="checkbox" ${S.onlyDeals?"checked":""}> Μόνο προσφορές</label>
   </div><div id="fl"></div>
-  <p class="muted" style="font-size:12.5px">* Οικογένεια = ναύλος × ${NPAX} άτομα + εκτίμηση ${eur(D.extras)} για 2 βαλίτσες και θέσεις (μετ' επιστροφής). Μία αναζήτηση ανά προορισμό και εβδομάδα (7 νύχτες), μέσω Google Flights${D.nonstop_only?", μόνο απευθείας πτήσεις (προορισμοί ή εβδομάδες χωρίς απευθείας πτήση δεν εμφανίζονται)":""}${NO_AIR?`, χωρίς ${esc(NO_AIR)} (ούτε ως ένα από τα σκέλη)`:""}. Το Google Flights συχνά δεν δείχνει όλες τις εταιρείες (π.χ. Aegean) όταν ζητούνται 5 θέσεις μαζί, γι' αυτό η τιμή υπολογίζεται ως άθροισμα δύο κρατήσεων στην ίδια πτήση: 1 ενήλικας + 2 παιδιά, και 2 ενήλικες. Η τελική τιμή φαίνεται στην κράτηση.</p>`;
+  <p class="muted" style="font-size:12.5px">* Οικογένεια = ναύλος × ${NPAX} άτομα + εκτίμηση ${eur(D.extras)} για 2 βαλίτσες και θέσεις (μετ' επιστροφής). Σε κάθε σάρωση ελέγχονται όλοι οι προορισμοί και όλες οι εβδομάδες (7 νύχτες) μέσω Google Flights${D.nonstop_only?", μόνο απευθείας πτήσεις (προορισμοί ή εβδομάδες χωρίς απευθείας πτήση δεν εμφανίζονται)":""}${NO_AIR?`, χωρίς ${esc(NO_AIR)} (ούτε ως ένα από τα σκέλη)`:""}. Το Google Flights συχνά δεν δείχνει όλες τις εταιρείες (π.χ. Aegean) όταν ζητούνται 5 θέσεις μαζί, γι' αυτό η τιμή υπολογίζεται ως άθροισμα δύο κρατήσεων στην ίδια πτήση: 1 ενήλικας + 2 παιδιά, και 2 ενήλικες. Η τελική τιμή φαίνεται στην κράτηση.</p>`;
   bindSegs(m);
   $("#fCountry").onchange=e=>{S.country=e.target.value;saveS();drawFl();};
   $("#fWin").onchange=e=>{S.win=e.target.value;saveS();drawFl();};
@@ -421,7 +421,7 @@ function renderRooms(m){
   const stays = D.hotels.filter(h=>S.sSrc==="all"||h.source===S.sSrc);
   const gs = groupStays(stays).sort((a,b)=>DEAL_RANK[b.best.deal]-DEAL_RANK[a.best.deal]||a.best.total/a.best.nights-b.best.total/b.best.nights);
   m.innerHTML = `<div class="filters">${seg("sSrc",[["all","Όλες οι πηγές"],["Airbnb","Airbnb"],["Google Hotels","Google Hotels"]])}</div>
-  <p class="muted" style="font-size:13px">Αυτόματη παρακολούθηση τιμών για ${esc(famTxt)}. Στο εξωτερικό ελέγχονται μόνο οι εβδομάδες όπου τα αεροπορικά προς το ίδιο μέρος έχουν έκπτωση (ή, όσο δεν υπάρχει ακόμη έκπτωση, η φθηνότερη εβδομάδα πτήσεων), περίπου μία φορά τη μέρα. Το Airbnb δείχνει σπίτια που χωράνε 5 άτομα με βαθμολογία 4,5 και πάνω. Το Google Hotels δείχνει ξενοδοχεία με 4+ και συγκεντρώνει τιμές από Booking, Expedia και άλλα sites.</p>
+  <p class="muted" style="font-size:13px">Αυτόματη παρακολούθηση τιμών για ${esc(famTxt)}. Στο εξωτερικό ελέγχονται μόνο οι εβδομάδες όπου τα αεροπορικά προς το ίδιο μέρος έχουν έκπτωση (ή, όσο δεν υπάρχει ακόμη έκπτωση, η φθηνότερη εβδομάδα πτήσεων), σε κάθε σάρωση. Το Airbnb δείχνει σπίτια που χωράνε 5 άτομα με βαθμολογία 4,5 και πάνω. Το Google Hotels δείχνει ξενοδοχεία με 4+ και συγκεντρώνει τιμές από Booking, Expedia και άλλα sites.</p>
   ${gs.length ? `<div class="grid">${gs.map(hotelCard).join("")}</div>` : `<div class="empty">Δεν υπάρχουν ακόμα αποτελέσματα διαμονής. Θα εμφανιστούν μετά την επόμενη σάρωση.</div>`}
   <h2 class="section-title">Γρήγορη αναζήτηση δωματίων για ${NPAX} άτομα</h2>
   <div class="filters">
