@@ -1,19 +1,23 @@
 #!/usr/bin/env python3
 """
-Συλλέκτης προσφορών διακοπών για οικογένεια (2 ενήλικες + 3 παιδιά).
+Συλλέκτης προσφορών διακοπών για οικογένεια 5 ατόμων (3 ενήλικες 42, 43, 13 + 2 παιδιά 9, 11).
+
+Αεροπορικά μόνο από Αθήνα, για ταξίδι μέσα στο διάστημα 20/6 – 5/9 (config.json → travel),
+προς Ισπανία, Ιταλία, Ελβετία, Δανία, Πορτογαλία, Αγγλία, Σκωτία, Γαλλία και ΗΠΑ.
+Χωρίς τις αεροπορικές του config.json → excluded_airlines (Ryanair, easyJet, Sky Express).
 
 Πηγές:
-  * Ryanair fare finder (δημόσιο API): ναύλοι μετ' επιστροφής από/προς Αθήνα (ATH)
-    προς τους επιλεγμένους προορισμούς εξωτερικού, για τις σχολικές αργίες.
+  * scrapers.py (Playwright): Google Flights (όλες οι υπόλοιπες αεροπορικές) και, για τις
+    εβδομάδες όπου τα αεροπορικά έχουν έκπτωση, Airbnb / Google Hotels στο ίδιο μέρος
+    και τις ίδιες ημερομηνίες. Για το Ναύπλιο μόνο δωμάτια.
   * RSS (Fly4free): προσφορές με αναχώρηση από Αθήνα.
-  * scrapers.py (Playwright): Google Flights (όλες οι αεροπορικές),
-    Airbnb και Google Hotels για 2 ενήλικες + 3 παιδιά. Για το Ναύπλιο μόνο δωμάτια.
+  * Ryanair fare finder (δημόσιο API): μόνο αν η Ryanair βγει από τις εξαιρούμενες.
 
 Κάθε εκτέλεση αποθηκεύει τις τιμές σε SQLite (ιστορικό) και γράφει το
 site/data.js που διαβάζει η ιστοσελίδα. Τρέχει κάθε ώρα στο GitHub Actions.
 
     python collector.py              # πλήρης συλλογή
-    python collector.py --no-scrape  # μόνο Ryanair + RSS (γρήγορα)
+    python collector.py --no-scrape  # χωρίς browser: RSS + όσα είναι ήδη αποθηκευμένα
 """
 import datetime as dt
 import html
@@ -52,6 +56,19 @@ def dest_allowed(cc, iata):
     if not ALLOWED_CC:
         return True
     return (cc or "").lower() in ALLOWED_CC and iata not in EXCLUDED_AIRPORTS
+
+
+def _norm_airline(name):
+    return re.sub(r"[^a-z0-9]", "", (name or "").lower())
+
+
+EXCLUDED_AIRLINES = [_norm_airline(a) for a in CFG.get("excluded_airlines", []) if _norm_airline(a)]
+
+
+def airline_allowed(name):
+    """False αν στο δρομολόγιο συμμετέχει (έστω σε ένα σκέλος) εξαιρούμενη αεροπορική."""
+    n = _norm_airline(name)
+    return not any(x in n for x in EXCLUDED_AIRLINES)
 
 
 def country_label(cc, iata, default):
@@ -154,22 +171,28 @@ def travel_windows():
         easter - dt.timedelta(days=8), easter + dt.timedelta(days=3),
         easter, easter + dt.timedelta(days=8), 4, 9)
 
-    # Καλοκαίρι: ~16/6 έως ~10/9, σε δεκαπενθήμερα για σύγκριση εβδομάδων
-    sy = TODAY.year if TODAY < dt.date(TODAY.year, 8, 20) else TODAY.year + 1
-    parts = [
-        ("jun2", "β' μισό Ιουνίου", (6, 16), (6, 30)),
-        ("jul1", "α' μισό Ιουλίου", (7, 1), (7, 15)),
-        ("jul2", "β' μισό Ιουλίου", (7, 16), (7, 31)),
-        ("aug1", "α' μισό Αυγούστου", (8, 1), (8, 15)),
-        ("aug2", "β' μισό Αυγούστου", (8, 16), (8, 31)),
-        ("sep1", "αρχές Σεπτεμβρίου", (9, 1), (9, 4)),
-    ]
-    for k, lbl, (m1, d1), (m2, d2) in parts:
-        of, ot = dt.date(sy, m1, d1), dt.date(sy, m2, d2)
-        add(f"summer{sy}", f"summer{sy}-{k}", f"Καλοκαίρι {sy} · {lbl}",
-            of, ot, of + dt.timedelta(days=5), min(ot + dt.timedelta(days=10),
-                                                   dt.date(sy, 9, 10)), 5, 10)
+    # Καλοκαίρι: διαδοχικές εβδομάδες, όλο το ταξίδι μέσα στο διάστημα (π.χ. 20/6 έως και 5/9)
+    T = CFG.get("travel", {})
+    m1, d1 = map(int, T.get("summer_from", "06-20").split("-"))
+    m2, d2 = map(int, T.get("summer_to", "09-05").split("-"))
+    nights = int(T.get("trip_nights", 7))
+    sy = TODAY.year
+    if TODAY + dt.timedelta(days=nights + 2) > dt.date(sy, m2, d2):
+        sy += 1
+    start, end = dt.date(sy, m1, d1), dt.date(sy, m2, d2)
+    while start + dt.timedelta(days=nights) <= end:
+        back = start + dt.timedelta(days=nights)
+        add(f"summer{sy}", f"summer{sy}-w{start:%m%d}",
+            f"Καλοκαίρι {sy} · {start.day}/{start.month}–{back.day}/{back.month}",
+            start, start, back, back, nights, nights)
+        start += dt.timedelta(days=7)
     return W
+
+
+def flight_windows():
+    """Οι περίοδοι για αεροπορικά και πακέτα (config → travel.flight_seasons)."""
+    want = CFG.get("travel", {}).get("flight_seasons", ["summer"])
+    return [w for w in travel_windows() if any(w["season"].startswith(x) for x in want)]
 
 
 # ------------------------------------------------------------------ database
@@ -259,7 +282,7 @@ def collect_ryanair(con):
     items, n_calls, errors = [], 0, []
     extras = flight_extras()
     for origin in CFG["origins"]:
-        for w in travel_windows():
+        for w in flight_windows():
             q = urllib.parse.urlencode(dict(
                 departureAirportIataCode=origin,
                 outboundDepartureDateFrom=iso(w["out_from"]),
@@ -348,22 +371,23 @@ DEST_WORDS = [
     "spain", "spanien", "hiszpani*", "barcelona", "madrid", "mallorca", "majorca", "malaga",
     "valencia", "seville", "sevilla", "ibiza", "tenerife", "canary", "canaries",
     "portugal", "portugali*", "lisbon", "lissabon", "porto", "madeira", "algarve", "faro",
-    "london", "londyn", "england", "anglia", "scotland", "schottland", "szkocj*", "wales",
+    "london", "londyn", "england", "anglia", "scotland", "schottland", "szkocj*",
     "uk", "united kingdom", "britain", "manchester", "liverpool", "birmingham", "bristol",
-    "edinburgh", "glasgow", "cardiff", "netherlands", "holland", "amsterdam", "eindhoven",
-    "rotterdam", "switzerland", "schweiz", "szwajcari*", "swiss", "zurich", "zürich", "geneva",
-    "genf", "basel", "bern", "lucerne", "interlaken",
-    "norway", "norwegen", "norwegi*", "oslo", "bergen", "finland", "finnland", "finlandi*",
-    "helsinki", "lapland", "lappland", "rovaniemi", "sweden", "schweden", "szwecj*", "stockholm",
-    "gothenburg", "france", "frankreich", "francj*", "paris", "paryż", "disneyland",
-    "lyon", "marseille", "italy", "italien", "włoch*", "rome", "rzym", "milan", "mailand",
-    "venice", "naples", "neapel", "sicily", "sardinia", "bologna", "pisa", "malta",
+    "edinburgh", "glasgow", "switzerland", "schweiz", "szwajcari*", "swiss", "zurich", "zürich",
+    "geneva", "genf", "basel", "bern", "lucerne", "interlaken",
+    "denmark", "dänemark", "dani*", "copenhagen", "kopenhagen", "kopenhag*", "billund",
+    "france", "frankreich", "francj*", "paris", "paryż", "disneyland",
+    "lyon", "marseille", "nice", "italy", "italien", "włoch*", "rome", "rzym", "milan", "mailand",
+    "venice", "naples", "neapel", "sicily", "sardinia", "bologna", "pisa", "florence",
     "usa", "united states", "new york", "nowy jork", "orlando", "miami", "los angeles",
     "san francisco", "las vegas", "boston", "chicago", "florida",
-    "ισπανία", "πορτογαλία", "λονδίνο", "αγγλία", "σκωτία", "ουαλία", "βρετανία", "εδιμβούργο",
-    "μάντσεστερ", "ολλανδία", "άμστερνταμ", "ελβετία", "ζυρίχη", "γενεύη", "νορβηγία",
-    "φινλανδία", "σουηδία", "γαλλία", "ιταλία", "μάλτα", "αμερική", "ηπα",
+    "ισπανία", "πορτογαλία", "λονδίνο", "αγγλία", "σκωτία", "βρετανία", "εδιμβούργο",
+    "μάντσεστερ", "ελβετία", "ζυρίχη", "γενεύη", "δανία", "κοπεγχάγη",
+    "γαλλία", "ιταλία", "αμερική", "ηπα",
 ]
+# αεροπορικές που δεν θέλουμε (όπως γράφονται στα άρθρα)
+AIRLINE_WORDS = sorted({w for a in CFG.get("excluded_airlines", [])
+                        for w in (a.lower(), a.lower().replace(" ", ""))})
 # μόνο αναχωρήσεις (και επιστροφές) από Αθήνα
 FROM_GREECE = ["from athens", "ab athen", "z aten", "από αθήνα"]
 FAMILY_WORDS = [
@@ -479,6 +503,8 @@ def collect_rss(con):
                 continue
             if relevance < CFG.get("rss_min_relevance", 2):
                 continue
+            if AIRLINE_WORDS and has_any(text, AIRLINE_WORDS):
+                continue
             price, cur = parse_price(title)
             if price is None:
                 price, cur = parse_price(desc)
@@ -516,8 +542,10 @@ def main():
     con = db()
     errors = []
     flights, hotels, rss = [], [], []
-    for name, fn in (("Ryanair", lambda: collect_ryanair(con)),
-                     ("RSS", lambda: collect_rss(con))):
+    sources = [("RSS", lambda: collect_rss(con))]
+    if airline_allowed("Ryanair"):
+        sources.insert(0, ("Ryanair", lambda: collect_ryanair(con)))
+    for name, fn in sources:
         try:
             res, errs = fn()
             errors += errs
@@ -548,14 +576,16 @@ def main():
     con.commit()
 
     windows = [dict(key=w["key"], label=w["label"], season=w["season"],
-                    out_from=iso(w["out_from"]), out_to=iso(w["out_to"]))
-               for w in travel_windows()]
+                    out_from=iso(w["out_from"]), out_to=iso(w["out_to"]),
+                    in_to=iso(w["in_to"]))
+               for w in flight_windows()]
     n_scans = con.execute("SELECT COUNT(DISTINCT ts) FROM snapshots").fetchone()[0]
     first_scan = con.execute("SELECT MIN(ts) FROM snapshots").fetchone()[0]
     payload = dict(
         generated=NOW, next_update=NOW + REFRESH_HOURS * 3600,
         family=FAMILY, n_pax=N_PAX, extras=flight_extras(),
         origins=CFG["origins"], windows=windows,
+        excluded_airlines=CFG.get("excluded_airlines", []),
         budget_default=CFG.get("max_family_budget_eur_default", 4000),
         n_scans=n_scans, first_scan=first_scan,
         flights=flights, rss=rss, hotels=hotels,

@@ -121,6 +121,8 @@ def notify_deals(con, payload, log=print):
     new = new[: cfg.get("max_items_per_email", 15)]
     page = cfg.get("page_url", "")
     fam = payload["family"]
+    excl = payload.get("excluded_airlines") or []
+    excl = f" Χωρίς {', '.join(excl)}." if excl else ""
     items_html = "".join(
         f"""<tr><td style="padding:12px 0;border-top:1px solid #e5e1d8">
         <div style="font-size:12px;color:#5d6675">{html.escape(r['kind'])} · {html.escape(r['who'])}</div>
@@ -133,8 +135,8 @@ def notify_deals(con, payload, log=print):
         </td></tr>""" for r in new)
     body = f"""<div style="font-family:Segoe UI,Arial,sans-serif;max-width:640px;margin:auto;color:#1d2430">
       <h2 style="margin:0 0 4px">🔥 {len(new)} εξαιρετικές προσφορές διακοπών</h2>
-      <p style="margin:0 0 12px;color:#5d6675">Για {fam['adults']} ενήλικες + {len(fam['children_ages'])} παιδιά
-      ({', '.join(map(str, fam['children_ages']))} ετών). Τιμές για όλη την οικογένεια.</p>
+      <p style="margin:0 0 12px;color:#5d6675">Από Αθήνα, για {fam['adults']} ενήλικες + {len(fam['children_ages'])} παιδιά
+      ({', '.join(map(str, fam['children_ages']))} ετών). Τιμές για όλη την οικογένεια.{excl}</p>
       <table style="width:100%;border-collapse:collapse">{items_html}</table>
       {f'<p style="margin-top:16px"><a href="{html.escape(page)}" style="color:#0b6e99;font-weight:600">Όλες οι προσφορές στη σελίδα →</a></p>' if page else ''}
       <p style="font-size:12px;color:#8a929e">Οι τιμές αλλάζουν συνεχώς και επιβεβαιώνονται μόνο στην κράτηση.</p></div>"""

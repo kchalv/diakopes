@@ -1,15 +1,35 @@
 {
   "family": {
-    "adults": 2,
+    "_note": "Για αεροπορικά και διαμονή: 3 ενήλικες (το 13χρονο μετρά ως ενήλικας) + 2 παιδιά.",
+    "adults": 3,
+    "adult_ages": [
+      42,
+      43,
+      13
+    ],
     "children_ages": [
       9,
-      11,
-      13
+      11
     ]
   },
   "origins": [
     "ATH"
   ],
+  "travel": {
+    "_note": "Περίοδος ταξιδιού για αεροπορικά και πακέτα: όλο το ταξίδι μέσα στο διάστημα (MM-DD), σε διαδοχικές εβδομάδες.",
+    "summer_from": "06-20",
+    "summer_to": "09-05",
+    "trip_nights": 7,
+    "flight_seasons": [
+      "summer"
+    ]
+  },
+  "excluded_airlines": [
+    "Ryanair",
+    "easyJet",
+    "Sky Express"
+  ],
+  "_excluded_airlines_note": "Αεροπορικές που ΔΕΝ θέλουμε. Κόβονται και τα δρομολόγια όπου συμμετέχουν έστω σε ένα σκέλος. Όλες οι υπόλοιπες μένουν. Για να κοπεί κι άλλη (π.χ. Wizz Air), προσθέστε το όνομά της εδώ.",
   "flight_extras_estimate": {
     "_note": "Εκτίμηση επιπλέον κόστους πτήσης για την οικογένεια (αποσκευές + υποχρεωτικές θέσεις ενηλίκων όταν ταξιδεύουν παιδιά κάτω των 12).",
     "checked_bags": 2,
@@ -27,7 +47,7 @@
     "price_drop_ratio": 0.9
   },
   "max_family_budget_eur_default": 4000,
-  "_rss_note": "Μόνο προσφορές με αναχώρηση από Αθήνα προς τους επιλεγμένους προορισμούς εξωτερικού.",
+  "_rss_note": "Μόνο προσφορές με αναχώρηση από Αθήνα προς τους επιλεγμένους προορισμούς, χωρίς τις εξαιρούμενες αεροπορικές.",
   "rss_feeds": [
     {
       "name": "Fly4free",
@@ -50,7 +70,7 @@
     "gflights_origins": [
       "ATH"
     ],
-    "gflights_per_run": 18,
+    "gflights_per_run": 30,
     "gflights_routes": [
       {
         "iata": "BCN",
@@ -107,18 +127,6 @@
         "cc": "gb"
       },
       {
-        "iata": "CWL",
-        "name": "Κάρντιφ",
-        "country": "Ουαλία",
-        "cc": "gb"
-      },
-      {
-        "iata": "AMS",
-        "name": "Άμστερνταμ",
-        "country": "Ολλανδία",
-        "cc": "nl"
-      },
-      {
         "iata": "ZRH",
         "name": "Ζυρίχη",
         "country": "Ελβετία",
@@ -131,28 +139,10 @@
         "cc": "ch"
       },
       {
-        "iata": "OSL",
-        "name": "Όσλο",
-        "country": "Νορβηγία",
-        "cc": "no"
-      },
-      {
-        "iata": "HEL",
-        "name": "Ελσίνκι",
-        "country": "Φινλανδία",
-        "cc": "fi"
-      },
-      {
-        "iata": "RVN",
-        "name": "Ροβανιέμι (Λαπωνία)",
-        "country": "Φινλανδία",
-        "cc": "fi"
-      },
-      {
-        "iata": "ARN",
-        "name": "Στοκχόλμη",
-        "country": "Σουηδία",
-        "cc": "se"
+        "iata": "CPH",
+        "name": "Κοπεγχάγη",
+        "country": "Δανία",
+        "cc": "dk"
       },
       {
         "iata": "CDG",
@@ -191,12 +181,6 @@
         "cc": "it"
       },
       {
-        "iata": "MLA",
-        "name": "Μάλτα",
-        "country": "Μάλτα",
-        "cc": "mt"
-      },
-      {
         "iata": "JFK",
         "name": "Νέα Υόρκη",
         "country": "ΗΠΑ",
@@ -214,8 +198,6 @@
       "google_hotels": 3
     },
     "stays_windows": [
-      "xmas",
-      "easter",
       "summer"
     ],
     "stays_places": [
@@ -290,22 +272,6 @@
         ]
       },
       {
-        "name": "Κάρντιφ",
-        "q": "Cardiff, United Kingdom",
-        "airports": [
-          "CWL",
-          "BRS"
-        ]
-      },
-      {
-        "name": "Άμστερνταμ",
-        "q": "Amsterdam, Netherlands",
-        "airports": [
-          "AMS",
-          "EIN"
-        ]
-      },
-      {
         "name": "Ζυρίχη",
         "q": "Zurich, Switzerland",
         "airports": [
@@ -321,35 +287,10 @@
         ]
       },
       {
-        "name": "Όσλο",
-        "q": "Oslo, Norway",
+        "name": "Κοπεγχάγη",
+        "q": "Copenhagen, Denmark",
         "airports": [
-          "OSL",
-          "TRF",
-          "RYG"
-        ]
-      },
-      {
-        "name": "Ελσίνκι",
-        "q": "Helsinki, Finland",
-        "airports": [
-          "HEL"
-        ]
-      },
-      {
-        "name": "Ροβανιέμι (Λαπωνία)",
-        "q": "Rovaniemi, Finland",
-        "airports": [
-          "RVN"
-        ]
-      },
-      {
-        "name": "Στοκχόλμη",
-        "q": "Stockholm, Sweden",
-        "airports": [
-          "ARN",
-          "NYO",
-          "BMA"
+          "CPH"
         ]
       },
       {
@@ -401,13 +342,6 @@
         ]
       },
       {
-        "name": "Μάλτα",
-        "q": "St. Julian's, Malta",
-        "airports": [
-          "MLA"
-        ]
-      },
-      {
         "name": "Νέα Υόρκη",
         "q": "New York, NY, United States",
         "airports": [
@@ -438,30 +372,29 @@
         ]
       }
     ],
-    "combo_from_best_flights": 4,
     "min_airbnb_rating": 4.5,
-    "_stays_places_note": "Κάθε μέρος: name, q (αναζήτηση), airports (για πακέτο με πτήση). Προαιρετικά: rooms_only (μόνο δωμάτια, χωρίς πτήση), region 'gr', windows (δικές του περίοδοι), priority (ελέγχεται σε κάθε σάρωση, έως 2 φορές τη μέρα)."
+    "_stays_places_note": "Κάθε μέρος: name, q (αναζήτηση), airports (για πακέτο με πτήση). Προαιρετικά: rooms_only (μόνο δωμάτια, χωρίς πτήση), region 'gr', windows (δικές του περίοδοι), priority (ελέγχεται σε κάθε σάρωση, έως 2 φορές τη μέρα).",
+    "stays_per_place": 3,
+    "_stays_note": "Διαμονές εξωτερικού ψάχνονται ΜΟΝΟ για τις εβδομάδες όπου τα αεροπορικά προς το ίδιο μέρος έχουν έκπτωση (έως stays_per_place εβδομάδες ανά μέρος· αν δεν υπάρχει ακόμη έκπτωση, η φθηνότερη εβδομάδα πτήσεων)."
   },
   "destinations": {
-    "_note": "Μόνο εξωτερικό (συν Ναύπλιο, μόνο δωμάτια), με αναχώρηση και επιστροφή από Αθήνα. Χώρες με κωδικό ISO. Από το Ηνωμένο Βασίλειο: Αγγλία, Σκωτία, Ουαλία (όχι Βόρεια Ιρλανδία).",
+    "_note": "Ευρώπη (Ισπανία, Ιταλία, Ελβετία, Δανία, Πορτογαλία, Αγγλία, Σκωτία, Γαλλία) και ΗΠΑ, με αναχώρηση και επιστροφή από Αθήνα, συν Ναύπλιο (μόνο δωμάτια). Χώρες με κωδικό ISO. Από το Ηνωμένο Βασίλειο μόνο Αγγλία και Σκωτία (Ουαλία και Βόρεια Ιρλανδία εξαιρούνται με τα αεροδρόμιά τους).",
     "countries": [
       "es",
+      "it",
+      "ch",
+      "dk",
       "pt",
       "gb",
-      "nl",
-      "ch",
-      "no",
-      "fi",
-      "se",
       "fr",
-      "it",
-      "mt",
       "us"
     ],
     "excluded_airports": [
       "BFS",
       "BHD",
-      "LDY"
+      "LDY",
+      "CWL",
+      "VLY"
     ]
   }
 }
