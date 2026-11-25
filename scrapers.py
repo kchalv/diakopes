@@ -453,15 +453,15 @@ def gf_all_jobs(c):
 
 def gf_scrape_jobs(c, br, jobs):
     """Εκτελεί τις αναζητήσεις. Όσες αποτύχουν (προσωρινά σφάλματα του Google) ξαναγίνονται
-    σε δεύτερο γύρο. Επιστρέφει μία εγγραφή ανά αναζήτηση με status ok / none / error."""
+    σε δεύτερο και τρίτο γύρο. Επιστρέφει μία εγγραφή ανά αναζήτηση με status ok / none / error."""
     pax = gf_pax(c.FAMILY)
     nonstop = bool(c.CFG.get("nonstop_only"))
     recs = {}
-    for rnd in range(2):
+    for rnd in range(3):
         todo = jobs if rnd == 0 else [j for j in jobs if recs[j["key"]]["status"] == "error"]
         if rnd and todo:
-            c.log(f"Google Flights: δεύτερη προσπάθεια για {len(todo)} αναζητήσεις")
-            time.sleep(20)
+            c.log(f"Google Flights: προσπάθεια {rnd + 1} για {len(todo)} αναζητήσεις")
+            time.sleep(30 * rnd)
         for j in todo:
             try:
                 res, _url = scrape_gflights(br, j["o"], j["r"]["iata"], dt.date.fromisoformat(j["out"]),
@@ -479,6 +479,10 @@ def gf_shard(c, i, n, out_path):
     """Ένα από τα n παράλληλα τμήματα της σάρωσης πτήσεων (GitHub Actions, χωριστός server
     το καθένα ώστε να μη μας κόβει το Google). Γράφει τα αποτελέσματα σε αρχείο JSON."""
     jobs = gf_all_jobs(c)[i::n]
+    # Κάθε τμήμα ξεκινά από άλλο σημείο της λίστας, ώστε τα τμήματα να μη ρωτούν το Google
+    # για τον ίδιο προορισμό την ίδια στιγμή (τότε γυρίζει σφάλμα σε όλα μαζί).
+    k = len(jobs) * i // max(n, 1)
+    jobs = jobs[k:] + jobs[:k]
     t0 = time.time()
     br = Browser()
     try:
