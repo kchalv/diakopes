@@ -258,7 +258,7 @@ function flightCard(grp){
     ${opts}
     ${alt}
     <div class="links">
-      <a class="btn primary" target="_blank" rel="noopener" href="${bookUrl(f)}">${gf?"Δείτε στο Google Flights":"Κράτηση Ryanair"}</a>
+      ${f.split_urls?`<a class="btn primary" target="_blank" rel="noopener" href="${esc(f.split_urls[0])}">Google Flights: 1 ενήλικας + παιδιά</a><a class="btn primary" target="_blank" rel="noopener" href="${esc(f.split_urls[1])}">Google Flights: 2 ενήλικες</a>`:`<a class="btn primary" target="_blank" rel="noopener" href="${bookUrl(f)}">${gf?"Δείτε στο Google Flights":"Κράτηση Ryanair"}</a>`}
       <a class="btn" target="_blank" rel="noopener" href="${L.skyscanner(f.origin,f.dest,ymd(f.out_dt),ymd(f.in_dt))}">Skyscanner</a>
       ${gf?"":`<a class="btn" target="_blank" rel="noopener" href="${L.gflights(f.origin,f.dest,ymd(f.out_dt),ymd(f.in_dt))}">Google Flights</a>`}
       <a class="btn" target="_blank" rel="noopener" href="${L.booking(place,ci,co,false)}">Ξενοδοχεία</a>
@@ -371,7 +371,7 @@ function renderFlights(m){
     <label>Ταξινόμηση<select id="fSort"><option value="deal" ${S.sort==="deal"?"selected":""}>Καλύτερη προσφορά</option><option value="price" ${S.sort==="price"?"selected":""}>Φθηνότερη</option></select></label>
     <label class="check"><input id="fDeals" type="checkbox" ${S.onlyDeals?"checked":""}> Μόνο προσφορές</label>
   </div><div id="fl"></div>
-  <p class="muted" style="font-size:12.5px">* Οικογένεια = ναύλος × ${NPAX} άτομα + εκτίμηση ${eur(D.extras)} για 2 βαλίτσες και θέσεις (μετ' επιστροφής). Μία αναζήτηση ανά προορισμό και εβδομάδα (7 νύχτες), μέσω Google Flights${D.nonstop_only?", μόνο απευθείας πτήσεις (προορισμοί ή εβδομάδες χωρίς απευθείας πτήση δεν εμφανίζονται)":""}${NO_AIR?`, χωρίς ${esc(NO_AIR)} (ούτε ως ένα από τα σκέλη)`:""}. Η τελική τιμή φαίνεται στην κράτηση.</p>`;
+  <p class="muted" style="font-size:12.5px">* Οικογένεια = ναύλος × ${NPAX} άτομα + εκτίμηση ${eur(D.extras)} για 2 βαλίτσες και θέσεις (μετ' επιστροφής). Μία αναζήτηση ανά προορισμό και εβδομάδα (7 νύχτες), μέσω Google Flights${D.nonstop_only?", μόνο απευθείας πτήσεις (προορισμοί ή εβδομάδες χωρίς απευθείας πτήση δεν εμφανίζονται)":""}${NO_AIR?`, χωρίς ${esc(NO_AIR)} (ούτε ως ένα από τα σκέλη)`:""}. Το Google Flights συχνά δεν δείχνει όλες τις εταιρείες (π.χ. Aegean) όταν ζητούνται 5 θέσεις μαζί, γι' αυτό η τιμή υπολογίζεται ως άθροισμα δύο κρατήσεων στην ίδια πτήση: 1 ενήλικας + 2 παιδιά, και 2 ενήλικες. Η τελική τιμή φαίνεται στην κράτηση.</p>`;
   bindSegs(m);
   $("#fCountry").onchange=e=>{S.country=e.target.value;saveS();drawFl();};
   $("#fWin").onchange=e=>{S.win=e.target.value;saveS();drawFl();};

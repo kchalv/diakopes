@@ -148,26 +148,77 @@ def _to24(t):
     return dt.datetime.strptime(t.replace("\u202f", " ").strip(), "%I:%M %p").strftime("%H:%M")
 
 
+def gf_groups(pax):
+    """Το Google Flights συχνά δεν τιμολογεί 5+ θέσεις μαζί (λείπουν εταιρείες όπως Aegean,
+    ITA, TAP, ενώ για έως 4 επιβάτες εμφανίζονται). Γι' αυτό η οικογένεια ψάχνεται σε δύο
+    κρατήσεις στην ίδια πτήση: 1 ενήλικας + τα παιδιά, και οι υπόλοιποι ενήλικες."""
+    if len(pax) <= 4:
+        return [pax]
+    adults = [p for p in pax if p == 1]
+    kids = [p for p in pax if p != 1]
+    return [adults[:1] + kids, adults[1:]] if len(adults) > 1 else [pax]
+
+
 def scrape_gflights(br, o, d, out, inn, pax, nonstop=False):
+    """Τιμή για όλη την οικογένεια: άθροισμα των κρατήσεων του gf_groups για την ίδια πτήση
+    (ίδια εταιρεία, ώρα αναχώρησης και στάσεις)."""
+    groups = gf_groups(pax)
+    total, url = None, None
+    for g in groups:
+        res, url = _gf_search(br, o, d, out, inn, g, nonstop)
+        part = {}
+        for x in res:
+            part.setdefault((x["airline"], x["dep"], x["stops"]), x["total"])
+        total = part if total is None else {k: v + part[k] for k, v in total.items() if k in part}
+        if not total:
+            break
+        if len(groups) > 1:
+            time.sleep(1.5)
+    res = [dict(total=v, stops=k[2], airline=k[0], dep=k[1]) for k, v in (total or {}).items()]
+    res.sort(key=lambda r: (r["total"], r["stops"]))
+    return res, url
+
+
+def _gf_search(br, o, d, out, inn, pax, nonstop=False):
     url = (f"https://www.google.com/travel/flights/search?tfs={gf_tfs(o, d, out.isoformat(), inn.isoformat(), pax, nonstop)}"
            f"&hl=en&gl=GR&curr=EUR")
     br.goto(url)
     br.google_consent()
+    # Το Google φορτώνει τις τιμές σταδιακά (για 5 επιβάτες εταιρείες όπως η Aegean έρχονται
+    # 9–12 δευτερόλεπτα μετά τις πρώτες), άρα περιμένουμε να σταθεροποιηθεί η λίστα.
     # Τρεις εκβάσεις: λίστα πτήσεων, «δεν υπάρχουν πτήσεις» (π.χ. καμία απευθείας: κενή λίστα,
-    # όχι σφάλμα), ή προσωρινό σφάλμα του Google («Oops, something went wrong»: νέα προσπάθεια).
+    # όχι σφάλμα), ή προσωρινό σφάλμα («Oops, something went wrong»: νέα προσπάθεια).
     # Το «δεν υπάρχουν πτήσεις» βγαίνει μερικές φορές και κατά λάθος, γι' αυτό γίνεται δεκτό
     # μόνο αν το δείξει δύο φορές.
+    probe = """() => { const t = document.body ? document.body.innerText : '';
+        return {n: document.querySelectorAll('[aria-label^="From "]').length,
+                done: /Prices are currently|price insights/i.test(t),
+                oops: /something went wrong/i.test(t),
+                none: /No (nonstop )?flights found|No options matching/i.test(t)}; }"""
     state, nones = "timeout", 0
     for attempt in range(4):
-        try:
-            state = br.page.wait_for_function("""() => {
-                if (document.querySelector('[aria-label^="From "]')) return 'ok';
-                const t = document.body ? document.body.innerText : '';
-                if (/something went wrong/i.test(t)) return 'oops';
-                if (/No (nonstop )?flights found|No options matching/i.test(t)) return 'none';
-                return false; }""", timeout=25000).json_value()
-        except Exception:  # noqa: BLE001
-            state = "timeout"
+        state, last, stable, t0 = "timeout", -1, 0, time.time()
+        while time.time() - t0 < 32:
+            time.sleep(2)
+            try:
+                i = br.page.evaluate(probe)
+            except Exception:  # noqa: BLE001
+                continue
+            el = time.time() - t0
+            if i["n"]:
+                stable = stable + 1 if i["n"] == last else 0
+                last = i["n"]
+                if (i["done"] and stable >= 1) or stable >= 4:
+                    state = "ok"
+                    break
+            elif i["oops"] and el >= 8:
+                state = "oops"
+                break
+            elif i["none"] and el >= 10:
+                state = "none"
+                break
+        if state == "timeout" and last > 0:
+            state = "ok"
         nones += state == "none"
         if state == "ok" or nones >= 2:
             break
@@ -177,7 +228,6 @@ def scrape_gflights(br, o, d, out, inn, pax, nonstop=False):
         return [], url
     if state != "ok":
         raise RuntimeError(f"καμία απάντηση ({state}) · {_why(br)}") from None
-    time.sleep(1.5)
     try:
         more = br.page.get_by_role("button", name=re.compile(r"more flights", re.I))
         if more.count():
@@ -453,7 +503,7 @@ def run(c, con, ryanair_flights):
         ok = none = 0
         for o, r, w, (out, inn) in gf_take:
             # το "|ns" κρατά χωριστό ιστορικό τιμών για τις απευθείας πτήσεις
-            key = f"GF|{o}|{r['iata']}|{w['key']}|{out.isoformat()}|{inn.isoformat()}" + ("|ns" if nonstop else "")
+            key = f"GF|{o}|{r['iata']}|{w['key']}|{out.isoformat()}|{inn.isoformat()}" + ("|ns" if nonstop else "") + ("|2" if len(gf_groups(pax)) > 1 else "")
             try:
                 res, url = scrape_gflights(br, o, r["iata"], out, inn, pax, nonstop)
                 res = [x for x in res if c.airline_allowed(x["airline"])
@@ -557,7 +607,8 @@ def build_flights(c, con, cache):
     rows = {}
     for key, v in cache.items():
         res = [x for x in v["res"] if c.airline_allowed(x["airline"]) and not (nonstop and x["stops"])]
-        if (res and v["w"] in live and key.endswith("|ns") == nonstop and v["o"] in c.CFG["origins"]
+        if (res and v["w"] in live and ("|ns" in key) == nonstop
+                and key.endswith("|2") == (len(gf_groups(pax)) > 1) and v["o"] in c.CFG["origins"]
                 and c.dest_allowed(v["r"]["cc"], v["r"]["iata"])):
             rows[key] = {**v, "res": res}
     peers = {}
@@ -588,7 +639,10 @@ def build_flights(c, con, cache):
             score=score, deal=label, reasons=reasons,
             hist=[[ts, p] for ts, p in h][-60:], hist_n=len(prev),
             hist_min=min(prev) if prev else None,
-            hist_median=statistics.median(prev) if prev else None))
+            hist_median=statistics.median(prev) if prev else None,
+            split_urls=[(f"https://www.google.com/travel/flights/search?tfs="
+                         f"{gf_tfs(v['o'], r['iata'], v['out'], v['in'], g, nonstop)}&hl=el&curr=EUR")
+                        for g in gf_groups(pax)] if len(gf_groups(pax)) > 1 else None))
     return items
 
 
