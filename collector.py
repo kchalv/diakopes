@@ -4,7 +4,7 @@
 
 Αεροπορικά μόνο από Αθήνα, για ταξίδι μέσα στο διάστημα 20/6 – 5/9 (config.json → travel),
 προς Ισπανία, Ιταλία, Ελβετία, Δανία, Πορτογαλία, Αγγλία, Σκωτία, Γαλλία και ΗΠΑ.
-Χωρίς τις αεροπορικές του config.json → excluded_airlines (Ryanair, easyJet, Sky Express)
+Χωρίς τις αεροπορικές του config.json → excluded_airlines (Ryanair, easyJet, Sky Express, Wizz Air, Vueling)
 και μόνο απευθείας πτήσεις (config.json → nonstop_only).
 
 Πηγές:
