@@ -386,7 +386,7 @@ def run(c, con, ryanair_flights):
                     gf_jobs.append((o, r, w, rd))
     gf_take = rotate(con, "gf_ptr", gf_jobs, S.get("gflights_per_run", 24))
 
-    # ---- μέρη "priority" (Ναύπλιο, μόνο δωμάτια): δικές τους περίοδοι, cache 12 ωρών
+    # ---- τυχόν μέρη "priority" στο config (μόνο δωμάτια): δικές τους περίοδοι, cache 12 ωρών
     wanted = S.get("stays_windows", ["summer"])
     prio_jobs = []
     for p in S.get("stays_places", []):
@@ -578,13 +578,14 @@ def build_stays(c, con, ab_cache, gh_cache, all_flights):
     for f in all_flights:
         fl_by_dest.setdefault((f["dest"], f["out_arr"][:10], f["in_dt"][:10]), []).append(f)
     sig = pax_sig(c.FAMILY)
+    places = {p["q"] for p in c.CFG.get("scrape", {}).get("stays_places", [])}
     targets = {(p["q"], ci.isoformat(), co.isoformat()): (f, why)
                for p, _w, (ci, co), f, why in stay_targets(c, c.CFG.get("scrape", {}), all_flights)}
     out = []
     for src, cache in (("Airbnb", ab_cache), ("Google Hotels", gh_cache)):
         for key, v in cache.items():
             # μόνο τρέχοντες προορισμοί (παλιές ελληνικές αναζητήσεις δεν έχουν "ap")
-            if not v["res"] or "ap" not in v or v.get("pax") != sig:
+            if not v["res"] or "ap" not in v or v.get("pax") != sig or v["q"] not in places:
                 continue
             # εξωτερικό: μόνο οι εβδομάδες όπου τα αεροπορικά έχουν έκπτωση
             target = targets.get((v["q"], v["ci"], v["co"]))
