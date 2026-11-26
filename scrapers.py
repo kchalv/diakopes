@@ -3,15 +3,16 @@ Scrapers με πραγματικό browser (Playwright/Chromium) για πηγέ
 
   * Google Flights  – όλες οι αεροπορικές εκτός από τις εξαιρούμενες (config → excluded_airlines),
                       τιμή για όλη την οικογένεια, μία αναζήτηση ανά προορισμό και εβδομάδα
-  * Airbnb          – διαμερίσματα/σπίτια για 3 ενήλικες + 2 παιδιά, συνολική τιμή
-  * Google Hotels   – ξενοδοχεία (συγκεντρώνει Booking, Expedia κ.ά.) με ηλικίες παιδιών
+  * Google Hotels   – μόνο οργανωμένα ξενοδοχεία 3★+ με βαθμολογία 4+ (συγκεντρώνει Booking.com,
+                      Expedia κ.ά.), η οικογένεια σε δύο δωμάτια, σύνδεσμοι κράτησης στο Booking.com
 
 Διαμονές εξωτερικού ψάχνονται μόνο για τις εβδομάδες όπου τα αεροπορικά προς το ίδιο
 μέρος έχουν έκπτωση (βλ. stay_targets), ώστε κάθε διαμονή να είναι πακέτο με πτήση.
 
 Δεν παρακάμπτει CAPTCHA ή μηχανισμούς προστασίας. Αν ένα site μπλοκάρει, η
 αναζήτηση απλώς παραλείπεται και καταγράφεται. Booking.com και Skyscanner
-δεν περιλαμβάνονται γιατί μπλοκάρουν τους αυτοματοποιημένους browsers.
+δεν διαβάζονται απευθείας γιατί μπλοκάρουν τους αυτοματοποιημένους browsers.
+Airbnb, διαμερίσματα και hostels δεν ψάχνονται καθόλου.
 
 Κάθε σάρωση κάνει ΟΛΕΣ τις αναζητήσεις πτήσεων (κάθε προορισμός × κάθε εβδομάδα). Στο
 GitHub Actions μοιράζονται σε παράλληλα τμήματα (gf_shard), το καθένα σε δικό του server.
@@ -23,6 +24,8 @@ import os
 import re
 import statistics
 import time
+import unicodedata
+import urllib.parse
 
 GF_PAX = None  # ορίζεται στο run()
 
@@ -256,114 +259,215 @@ def _gf_search(br, o, d, out, inn, pax, nonstop=False):
     return res, url
 
 
-# ------------------------------------------------------------------ Airbnb
-AB_PRICE_RE = re.compile(r"€\s?([\d,]+)\s*(?:total|for \d+ nights?)")
-AB_RATING_RE = re.compile(r"([\d.]+) out of 5 average rating, ([\d,]+) review")
+# ----------------------------------------------------------- Google Hotels
+# Μόνο οργανωμένα ξενοδοχεία (όχι Airbnb, διαμερίσματα ή hostels). Οι τιμές διαβάζονται από το
+# Google Hotels, που συγκεντρώνει Booking.com, Expedia κ.ά. Το ίδιο το Booking.com δεν διαβάζεται
+# αυτόματα (δίνει κενή σελίδα στους αυτοματοποιημένους browsers), γι' αυτό κάθε ξενοδοχείο έχει
+# έτοιμο σύνδεσμο προς το Booking.com για τις ίδιες ημερομηνίες και όλη την οικογένεια.
+# Στη Γαλλία γράφει «4-star tourist hotel»· τα «tourist residence» (διαμερίσματα) μένουν εκτός.
+GH_STAR_RE = re.compile(r"Amenities for (.+?), an? (\d)-star (?:tourist )?hotel")
+GH_PRICE_RE = re.compile(r"^Prices starting from €\s?([\d,.\s\xa0]+),\s*(.+)$")
+GH_RATING_RE = re.compile(r"^([\d.]+) out of 5 stars from ([\d,.]+) reviews?,\s*(.+)$")
+# Λέξεις στο όνομα που δείχνουν ότι δεν είναι οργανωμένο ξενοδοχείο (το Google δίνει «αστέρια» και
+# σε hostels, ξενώνες και ενοικιαζόμενα δωμάτια). Αλλάζουν από το config → scrape.hotel_exclude_words.
+GH_EXCLUDE_WORDS = ["hostel", "hostal", "hostelle", "ostello", "albergue", "auberge", "pension",
+                    "guest house", "guesthouse", "bed & breakfast", "bed and breakfast", "b & b",
+                    "apartment", "apartamento", "appartement", "appartament", "rooms", "capsule", "pod ",
+                    "camping", "agriturismo", " - b&b", "remote check-in", "self check-in", "meininger", "generator", "onefam",
+                    "a&o ", "safestay", "wombat", "st christopher", "yellowsquare", "siesta & go", "combo,"]
 
 
-def scrape_airbnb(br, q, ci, co, family):
-    url = (f"https://www.airbnb.com/s/{q.replace(', ', '--').replace(' ', '-')}/homes"
-           f"?checkin={ci.isoformat()}&checkout={co.isoformat()}&adults={family['adults']}"
-           f"&children={len(family['children_ages'])}&currency=EUR&locale=en")
-    br.goto(url)
-    try:
-        br.page.wait_for_selector('[itemprop="itemListElement"]', timeout=30000)
-    except Exception:  # noqa: BLE001
-        raise RuntimeError(f"καμία κάρτα · {_why(br)}") from None
-    time.sleep(2)
-    cards = br.page.locator('[itemprop="itemListElement"]')
-    res = []
-    for i in range(min(cards.count(), 30)):
-        c = cards.nth(i)
+def _plain(text):
+    """Πεζά χωρίς τόνους/διαλυτικά, για συγκρίσεις ονομάτων (Zürich = Zurich)."""
+    return "".join(ch for ch in unicodedata.normalize("NFKD", text or "") if not unicodedata.combining(ch)).lower()
+
+
+GH_KEY = "GH2"  # κλειδί cache/ιστορικού· το παλιό "GH" ήταν τιμή ενός δωματίου, μη συγκρίσιμη
+
+
+def gh_rooms(family):
+    """Δωμάτια ξενοδοχείου για την οικογένεια, ως [(ενήλικες, [ηλικίες παιδιών])]. Τα ξενοδοχεία
+    σχεδόν ποτέ δεν δίνουν τιμή για 5 άτομα σε ένα δωμάτιο, άρα (όπως και στις πτήσεις) η
+    οικογένεια ψάχνεται σε δύο δωμάτια του ίδιου ξενοδοχείου: 2 ενήλικες, και οι υπόλοιποι
+    ενήλικες με τα παιδιά."""
+    adults, kids = family["adults"], list(family["children_ages"])
+    if adults + len(kids) <= 3 or adults < 2:
+        return [(adults, kids)]
+    if adults == 2:
+        h = (len(kids) + 1) // 2
+        return [(1, kids[:h]), (1, kids[h:])]
+    return [(2, []), (adults - 2, kids)]
+
+
+def gh_ts(ci, co, adults, ages, stars=(3, 4, 5), rating4=True, by_price=False, cur="EUR"):
+    """Κωδικοποίηση αναζήτησης Google Hotels (protobuf): επισκέπτες με ηλικίες παιδιών, ημερομηνίες,
+    νόμισμα, κατηγορίες αστέρων, βαθμολογία 4+ και (προαιρετικά) ταξινόμηση κατά τιμή."""
+    g = b"".join(_fld(1, 2, _fld(1, 0, 3)) for _ in range(adults))
+    g += b"".join(_fld(1, 2, _fld(1, 0, 2) + _fld(2, 0, a)) for a in ages) + _fld(2, 0, 1)
+
+    def d(x):
+        return _fld(1, 0, x.year) + _fld(2, 0, x.month) + _fld(3, 0, x.day)
+    dates = _fld(2, 2, _fld(1, 2, d(ci)) + _fld(2, 2, d(co)) + _fld(3, 0, (co - ci).days))
+    f1 = ((_fld(2, 2, bytes(stars)) if stars else b"") + (_fld(5, 0, 3) if by_price else b"")
+          + _s(7, cur))
+    f5 = _fld(1, 2, f1) + (_fld(4, 2, _fld(3, 0, 1)) + _fld(5, 0, 8) if rating4 else b"")
+    msg = _fld(1, 0, 1) + _fld(2, 2, g) + _fld(3, 2, _fld(2, 2, dates)) + _fld(5, 2, f5)
+    return base64.urlsafe_b64encode(msg).decode().rstrip("=")
+
+
+def booking_url(ss, ci, co, family, hotels_only=True):
+    """Έτοιμη αναζήτηση στο Booking.com για όλη την οικογένεια (σε τόσα δωμάτια όσα το gh_rooms)."""
+    q = [("ss", ss), ("checkin", ci.isoformat()), ("checkout", co.isoformat()),
+         ("group_adults", family["adults"]), ("group_children", len(family["children_ages"]))]
+    q += [("age", a) for a in family["children_ages"]]
+    q += [("no_rooms", len(gh_rooms(family))), ("selected_currency", "EUR")]
+    if hotels_only:
+        q.append(("nflt", "ht_id=204"))  # τύπος καταλύματος: ξενοδοχεία
+    return "https://www.booking.com/searchresults.el.html?" + urllib.parse.urlencode(q)
+
+
+def _gh_read(pg):
+    """Διαβάζει τα ξενοδοχεία που δείχνει τώρα η σελίδα (περιμένει να σταθεροποιηθούν οι τιμές, που
+    έρχονται σταδιακά). Επιστρέφει ({όνομα: (τιμή/νύχτα σε €, αστέρια, βαθμολογία, κριτικές)},
+    πλήθος ξενοδοχείων, δείγμα ετικετών τιμής)."""
+    labels, last, stable, t0 = [], -1, 0, time.time()
+    while time.time() - t0 < 12:
+        time.sleep(1.5)
+        labels = pg.eval_on_selector_all(
+            "[aria-label]", 'els => els.map(e => e.getAttribute("aria-label") || "")'
+                            '.filter(t => /^Prices starting|out of 5 stars/.test(t))')
+        n = sum(1 for x in labels if x.startswith("Prices"))
+        stable = stable + 1 if n == last else 0
+        last = n
+        if (n and stable >= 2) or (not n and time.time() - t0 > 7):
+            break
+    body = pg.inner_text("body")
+    cls = {n.strip(): int(st) for n, st in GH_STAR_RE.findall(body)}
+    ratings, out = {}, {}
+    for lab in labels:
+        m = GH_RATING_RE.match(lab)
+        if m:
+            ratings[m.group(3).strip()] = (float(m.group(1)), int(re.sub(r"\D", "", m.group(2)) or 0))
+    for lab in labels:
+        m = GH_PRICE_RE.match(lab)
+        if not m or m.group(2).strip() not in cls:
+            continue
+        num = re.sub(r"\D", "", re.sub(r"[.,]\d{2}$", "", m.group(1).strip()))
+        if num:
+            name = m.group(2).strip()
+            if name not in ratings:
+                # Σε μια παραλλαγή της σελίδας η ετικέτα βαθμολογίας δεν έχει το όνομα: τότε η
+                # βαθμολογία διαβάζεται από το κείμενο της κάρτας («Όνομα / €62 / 4.0 / (4.5K)»).
+                rm = re.search(re.escape(name) + r"\n(?:[^\n]*\n){0,3}?(\d(?:\.\d)?)\n\(([\d.,]+)(K?)\)", body)
+                if rm:
+                    cnt = float(rm.group(2).replace(",", "")) * (1000 if rm.group(3) else 1)
+                    ratings[name] = (float(rm.group(1)), int(cnt))
+            out[name] = (float(num), cls[name]) + ratings.get(name, (None, None))
+    return out, len(cls), [x for x in labels if x.startswith("Prices")][:2]
+
+
+def _gh_page(br, q, ci, co, adults, ages, stars, by_price, pages=2):
+    """Αποτελέσματα μιας αναζήτησης (οι πρώτες `pages` σελίδες):
+    {όνομα: (τιμή/νύχτα σε €, αστέρια, βαθμολογία, κριτικές)}.
+    Το Google δίνει πού και πού μια κενή παραλλαγή της σελίδας (χωρίς αποτελέσματα): έως 3 προσπάθειες."""
+    url = ("https://www.google.com/travel/search?hl=en&gl=GR&curr=EUR&q="
+           + urllib.parse.quote("hotels in " + q) + "&ts=" + gh_ts(ci, co, adults, ages, stars, True, by_price))
+    pg = br.page
+    err = "καμία απάντηση"
+    for attempt in range(3):
+        if attempt:
+            time.sleep(4 * attempt)
+        br.goto(url)
+        br.google_consent()
         try:
-            txt = c.inner_text(timeout=5000)
+            pg.wait_for_selector('[aria-label^="Number of travelers"]', timeout=25000)
         except Exception:  # noqa: BLE001
+            err = f"δεν φόρτωσε · {_why(br)}"
             continue
-        prices = AB_PRICE_RE.findall(txt)
-        if not prices:
+        out, n_cls, sample = _gh_read(pg)
+        # Ο τίτλος λέει για ποιο μέρος είναι τα αποτελέσματα («Search for accommodations in Rome»):
+        # αν το Google αγνόησε τον προορισμό, η σελίδα δεν χρησιμοποιείται.
+        m = re.match(r"Search for accommodations in (.+?) - Google", pg.title())
+        where = _plain(m.group(1) if m else "")
+        if not where or not (where in _plain(q) or _plain(q.split(",")[0]) in where):
+            err = f"λάθος ή κενή σελίδα · {_why(br)}"
             continue
-        total = float(prices[-1].replace(",", ""))
-        rm = AB_RATING_RE.search(txt)
-        name_el = c.locator('meta[itemprop="name"]')
-        url_el = c.locator('meta[itemprop="url"]')
-        name = name_el.first.get_attribute("content") if name_el.count() else txt.split("\n")[0]
-        link = url_el.first.get_attribute("content") if url_el.count() else None
-        if link and not link.startswith("http"):
-            link = "https://www.airbnb.com" + (link if link.startswith("/") else "/" + link.split("/", 1)[-1])
-        lines = [x.strip() for x in txt.split("\n") if x.strip()]
-        ptype = next((x for x in lines if " in " in x and len(x) < 60), None)
-        bedrooms = next((x for x in lines if re.match(r"^\d+ bedrooms?$", x)), None)
-        res.append(dict(name=name, link=link, total=total,
-                        rating=float(rm.group(1)) if rm else None,
-                        reviews=int(rm.group(2).replace(",", "")) if rm else None,
-                        type=ptype, bedrooms=bedrooms))
-    if not res and cards.count():
-        lines = [x for x in cards.first.inner_text().split("\n")
-                 if re.search(r"[€$£]|total|night|EUR|USD", x, re.I)]
-        raise RuntimeError("άγνωστη μορφή τιμής: " + " | ".join(lines)[:200])
+        if not out:
+            err = f"καμία τιμή σε € ({n_cls} ξενοδοχεία, δείγμα: {sample})"
+            continue
+        # Πού και πού η σελίδα έρχεται χωρίς καμία βαθμολογία/κριτικές: νέα προσπάθεια (στην
+        # τελευταία γίνεται δεκτή όπως είναι, και οι κριτικές παίρνονται από το άλλο δωμάτιο).
+        if attempt < 2 and all(v[2] is None for v in out.values()):
+            err = "σελίδα χωρίς βαθμολογίες"
+            continue
+        for _ in range(pages - 1):  # επόμενες σελίδες αποτελεσμάτων
+            try:
+                nxt = pg.locator('button:has-text("Next")').locator("visible=true")
+                if not nxt.count():
+                    break
+                nxt.last.scroll_into_view_if_needed(timeout=5000)
+                nxt.last.click(timeout=5000)
+                time.sleep(2.5)
+                more = _gh_read(pg)[0]
+            except Exception:  # noqa: BLE001
+                break
+            for k, v in more.items():
+                out.setdefault(k, v)
+        return out, url
+    raise RuntimeError(err)
+
+
+def scrape_ghotels(br, q, ci, co, family, S=None):
+    """Ξενοδοχεία για όλη την οικογένεια: άθροισμα των δωματίων του gh_rooms στο ίδιο ξενοδοχείο.
+    Κάθε δωμάτιο ψάχνεται δύο φορές (προτεινόμενα και φθηνότερα πρώτα), ώστε να βρεθούν περισσότερα
+    ξενοδοχεία με τιμή και για τα δύο δωμάτια. Κόβονται όσα δεν είναι οργανωμένα ξενοδοχεία:
+    λέξεις όπως hostel στο όνομα, λίγες κριτικές, και τιμές πολύ κάτω από τα υπόλοιπα (κρεβάτι σε
+    κοιτώνα αντί για δωμάτιο)."""
+    S = S or {}
+    stars = tuple(range(int(S.get("min_hotel_stars", 3)), 6))
+    words = [_plain(w) for w in S.get("hotel_exclude_words", GH_EXCLUDE_WORDS)]
+    min_reviews = int(S.get("min_hotel_reviews", 300))
+    rooms = gh_rooms(family)
+    nights = (co - ci).days
+    per_room, url = [], None
+    for adults, ages in rooms:
+        found = {}
+        for by_price in (False, True):
+            try:
+                part, u = _gh_page(br, q, ci, co, adults, ages, stars, by_price)
+            except Exception:  # noqa: BLE001
+                if by_price and found:
+                    continue  # αρκεί η πρώτη σελίδα
+                raise
+            url = url or u
+            for k, v in part.items():
+                found.setdefault(k, v)
+            time.sleep(1.5)
+        per_room.append(found)
+    place = q.split(",")[0]
+    res, cut = [], {"δωμάτια": 0, "όνομα": 0, "κριτικές": 0}
+    for name, first in per_room[0].items():
+        if first[2] is None:  # βαθμολογία από όποιο δωμάτιο την έχει
+            first = first[:2] + next((r[name][2:] for r in per_room if name in r and r[name][2] is not None),
+                                     (None, None))
+        why = ("δωμάτια" if any(name not in r for r in per_room)
+               else "όνομα" if any(w in _plain(name) + " " for w in words)
+               else "κριτικές" if (first[3] or 0) < min_reviews else None)
+        if why:
+            cut[why] += 1
+            continue
+        split = [r[name][0] for r in per_room]
+        night = sum(split)
+        res.append(dict(name=name, link=booking_url(f"{name}, {place}", ci, co, family, False),
+                        per_night=night, total=night * nights, split=split, stars=first[1],
+                        rating=first[2], reviews=first[3], type="hotel"))
+    if not res:
+        raise RuntimeError(f"κανένα κατάλληλο ξενοδοχείο (ανά δωμάτιο {[len(r) for r in per_room]}, κόπηκαν: {cut})")
+    if len(res) >= 4:
+        floor = S.get("hotel_min_price_ratio", 0.6) * statistics.median(r["total"] for r in res)
+        res = [r for r in res if r["total"] >= floor]
     res.sort(key=lambda r: r["total"])
     return res, url
-
-
-# ----------------------------------------------------------- Google Hotels
-GH_LABEL_RE = re.compile(r"^(.*?),\s*(?:€\s?([\d,. \xa0]+)|([\d,. \xa0]+)\s?€|EUR\s?([\d,.]+))\s*$")
-
-
-def scrape_ghotels(br, q, ci, co, family):
-    text = f"hotels in {q} {ci.day} {ci:%B %Y} to {co.day} {co:%B %Y}"
-    url = "https://www.google.com/travel/search?hl=en&gl=GR&curr=EUR&q=" + text.replace(" ", "%20")
-    br.goto(url)
-    br.google_consent()
-    pg = br.page
-    pg.wait_for_selector('[aria-label^="Number of travelers"]', timeout=25000)
-    # επισκέπτες: ενήλικες + παιδιά με ηλικίες
-    pg.locator('[aria-label^="Number of travelers"]').first.click()
-    time.sleep(0.8)
-    cur_adults = 2
-    for _ in range(family["adults"] - cur_adults):
-        pg.get_by_role("button", name="Add adult").first.click()
-    for _ in range(cur_adults - family["adults"]):
-        pg.get_by_role("button", name="Remove adult").first.click()
-    for i, age in enumerate(family["children_ages"], 1):
-        pg.get_by_role("button", name="Add child").first.click()
-        time.sleep(0.4)
-        pg.locator(f'[aria-label="Age of child {i}"]').first.click()
-        time.sleep(0.4)
-        opt = pg.locator('[role="option"]:visible').filter(has_text=re.compile(rf"^\s*{age}\s*$"))
-        opt.first.click()
-        time.sleep(0.3)
-    pg.get_by_role("button", name="Done").first.click()
-    time.sleep(3)
-    n = len(family["children_ages"]) + family["adults"]
-    lab = pg.locator('[aria-label^="Number of travelers"]').first.get_attribute("aria-label") or ""
-    if f"is {n}" not in lab:
-        raise RuntimeError(f"Δεν ορίστηκαν σωστά οι επισκέπτες ({lab})")
-    # φίλτρο βαθμολογίας 4+
-    rb = pg.locator('button[aria-label^="4+ rating"]')
-    if rb.count():
-        rb.first.click()
-        time.sleep(3)
-    pg.wait_for_load_state("domcontentloaded")
-    labels = pg.eval_on_selector_all(
-        "a[aria-label]", 'els => els.map(e => [e.getAttribute("aria-label"), e.href])')
-    nights = (co - ci).days
-    res, seen = [], set()
-    for lab, href in labels:
-        m = GH_LABEL_RE.match(lab or "")
-        if not m or m.group(1) in seen:
-            continue
-        seen.add(m.group(1))
-        num = re.sub(r"[^\d]", "", next(g for g in m.groups()[1:] if g))
-        if not num:
-            continue
-        night = float(num)
-        res.append(dict(name=m.group(1), link=href, per_night=night, total=night * nights,
-                        rating=None, type="hotel"))
-    if not res:
-        sample = [l for l, _ in labels if l and re.search(r"\d", l)][:5]
-        raise RuntimeError(f"καμία τιμή ({len(labels)} labels, με αριθμούς: {sample}) · {_why(br)}")
-    res.sort(key=lambda r: r["total"])
-    return res, pg.url
 
 
 # ------------------------------------------------------------- job planning
@@ -563,14 +667,14 @@ def run(c, con, ryanair_flights, gf_recs=None):
                 rd = rep_dates(c, w)
                 if rd:
                     prio_jobs.append((p, w, rd, 12))
-    per = S.get("stays_per_run", {"airbnb": 80, "google_hotels": 6})
+    per = S.get("stays_per_run", {"google_hotels": 30})
 
     gf_cache = load_cache(con, "gf_cache")
-    ab_cache = load_cache(con, "ab_cache")
     gh_cache = load_cache(con, "gh_cache")
+    con.execute("DELETE FROM kv WHERE k='ab_cache'")  # παλιά αποτελέσματα Airbnb: δεν χρησιμοποιούνται πια
 
     def stay_jobs(cache, prefix, n):
-        """Διαμονές για ΟΛΕΣ τις εβδομάδες με έκπτωση πτήσεων σε κάθε σάρωση (το όριο n και
+        """Ξενοδοχεία για ΟΛΕΣ τις εβδομάδες με έκπτωση πτήσεων σε κάθε σάρωση (το όριο n και
         η cache 3 ωρών είναι μόνο δικλείδες ασφαλείας) και μετά τα μέρη "priority"."""
         def stale(job):
             p, w, (ci, co), hours = job
@@ -598,46 +702,24 @@ def run(c, con, ryanair_flights, gf_recs=None):
         # Οι πτήσεις όπως είναι τώρα· από αυτές βγαίνουν οι εβδομάδες με έκπτωση για διαμονή
         gf_flights = build_flights(c, con, gf_cache)
 
-        # Airbnb
+        # Ξενοδοχεία (Google Hotels): η οικογένεια σε δύο δωμάτια του ίδιου ξενοδοχείου
         ok = 0
-        ab_take = stay_jobs(ab_cache, "AB", per.get("airbnb", 10))
-        for p, w, (ci, co), _h in ab_take:
-            key = f"AB|{p['q']}|{ci.isoformat()}|{co.isoformat()}"
-            try:
-                res, url = scrape_airbnb(br, p["q"], ci, co, fam)
-                if res:
-                    good = [x for x in res if (x["rating"] or 0) >= S.get("min_airbnb_rating", 4.5)] or res
-                    ab_cache[key] = stay_entry(p, w, ci, co, res, good[:6], url)
-                    con.execute("INSERT INTO snapshots VALUES(?,?,?,?,?)",
-                                (key, c.NOW, good[0]["total"], good[0]["total"], "{}"))
-                    ok += 1
-            except Exception as ex:  # noqa: BLE001
-                errors.append(f"Airbnb {p['name']} {ci}: {str(ex)[:120]}")
-            time.sleep(2)
-        c.record_run(con, "Airbnb", ok > 0 or not ab_take, ok, "")
-        c.log(f"Airbnb: {ok}/{len(ab_take)} αναζητήσεις OK")
-        con.commit()
-
-        # Google Hotels. Από servers εκτός Ευρώπης (GitHub Actions) αγνοεί προορισμό και
-        # νόμισμα (γενικά αποτελέσματα «Ελλάδα» σε $), οπότε εκεί δεν το χρησιμοποιούμε.
-        ok = 0
-        gh_take = stay_jobs(gh_cache, "GH", per.get("google_hotels", 6))
-        if os.environ.get("GITHUB_ACTIONS") and not S.get("google_hotels_online", False):
-            gh_take = []
+        gh_take = stay_jobs(gh_cache, GH_KEY, per.get("google_hotels", 30))
         for p, w, (ci, co), _h in gh_take:
-            key = f"GH|{p['q']}|{ci.isoformat()}|{co.isoformat()}"
+            key = f"{GH_KEY}|{p['q']}|{ci.isoformat()}|{co.isoformat()}"
             try:
-                res, url = scrape_ghotels(br, p["q"], ci, co, fam)
-                if res:
-                    gh_cache[key] = stay_entry(p, w, ci, co, res, res[:6], url)
-                    con.execute("INSERT INTO snapshots VALUES(?,?,?,?,?)",
-                                (key, c.NOW, res[0]["total"], res[0]["total"], "{}"))
-                    ok += 1
+                res, url = scrape_ghotels(br, p["q"], ci, co, fam, S)
+                e = stay_entry(p, w, ci, co, res, res[:6], booking_url(p["q"], ci, co, fam))
+                e["gh_url"] = url
+                gh_cache[key] = e
+                con.execute("INSERT INTO snapshots VALUES(?,?,?,?,?)",
+                            (key, c.NOW, res[0]["total"], res[0]["total"], "{}"))
+                ok += 1
             except Exception as ex:  # noqa: BLE001
-                errors.append(f"Google Hotels {p['name']} {ci}: {str(ex)[:120]}")
+                errors.append(f"Ξενοδοχεία {p['name']} {ci}: {str(ex)[:120]}")
             time.sleep(2)
         c.record_run(con, "Google Hotels", ok > 0 or not gh_take, ok, "")
-        c.log(f"Google Hotels: {ok}/{len(gh_take)} αναζητήσεις OK")
+        c.log(f"Ξενοδοχεία (Google Hotels): {ok}/{len(gh_take)} αναζητήσεις OK")
     except Exception as ex:  # noqa: BLE001
         errors.append(f"Scraping browser: {str(ex)[:200]}")
         c.log(errors[-1])
@@ -649,13 +731,12 @@ def run(c, con, ryanair_flights, gf_recs=None):
                 pass
 
     save_cache(c, con, "gf_cache", gf_cache, 4)
-    save_cache(c, con, "ab_cache", ab_cache, 2)
     save_cache(c, con, "gh_cache", gh_cache, 2)
     con.commit()
     c.log(f"Scraping ολοκληρώθηκε σε {time.time() - t0:.0f}s, {len(errors)} σφάλματα")
 
     gf_flights = build_flights(c, con, gf_cache)
-    return gf_flights, build_stays(c, con, ab_cache, gh_cache, ryanair_flights + gf_flights), errors
+    return gf_flights, build_stays(c, con, gh_cache, ryanair_flights + gf_flights), errors
 
 
 # ------------------------------------------------------------ build output
@@ -721,8 +802,8 @@ def _flight_option(f):
                 dep=f["out_dt"][11:16] or None, url=f.get("book_url"), dest=f["dest"])
 
 
-def build_stays(c, con, ab_cache, gh_cache, all_flights):
-    """Διαμονές· όπου υπάρχουν πτήσεις ίδιων ημερομηνιών προς το ίδιο μέρος, φτιάχνει και
+def build_stays(c, con, gh_cache, all_flights):
+    """Ξενοδοχεία· όπου υπάρχουν πτήσεις ίδιων ημερομηνιών προς το ίδιο μέρος, φτιάχνει και
     «πακέτο» πτήση + διαμονή, με όλες τις (επιτρεπόμενες) αεροπορικές των ημερομηνιών αυτών.
     Διαμονές εξωτερικού εμφανίζονται μόνο για τις εβδομάδες του stay_targets."""
     fl_by_dest = {}
@@ -733,10 +814,11 @@ def build_stays(c, con, ab_cache, gh_cache, all_flights):
     targets = {(p["q"], ci.isoformat(), co.isoformat()): (f, why)
                for p, _w, (ci, co), f, why in stay_targets(c, c.CFG.get("scrape", {}), all_flights)}
     out = []
-    for src, cache in (("Airbnb", ab_cache), ("Google Hotels", gh_cache)):
+    for src, cache in (("Google Hotels", gh_cache),):
         for key, v in cache.items():
-            # μόνο τρέχοντες προορισμοί (παλιές ελληνικές αναζητήσεις δεν έχουν "ap")
-            if not v["res"] or "ap" not in v or v.get("pax") != sig or v["q"] not in places:
+            # μόνο τρέχοντες προορισμοί και μόνο αποτελέσματα της τωρινής μεθόδου (δύο δωμάτια, 3★+)
+            if (not key.startswith(GH_KEY + "|") or not v["res"] or "ap" not in v
+                    or v.get("pax") != sig or v["q"] not in places):
                 continue
             # εξωτερικό: μόνο οι εβδομάδες όπου τα αεροπορικά έχουν έκπτωση
             target = targets.get((v["q"], v["ci"], v["co"]))
@@ -751,7 +833,8 @@ def build_stays(c, con, ab_cache, gh_cache, all_flights):
                         nights=(co - ci).days, region=v.get("region", "abroad"),
                         rooms_only=bool(v.get("ro")),
                         results=v["res"][:5], total=top["total"], median=v.get("median"),
-                        search_url=v.get("url"), fetched=v["ts"],
+                        search_url=v.get("url"), gh_url=v.get("gh_url"), fetched=v["ts"],
+                        rooms=len(gh_rooms(c.FAMILY)),
                         score=score, deal=label, reasons=reasons,
                         hist=[[ts, p] for ts, p in h][-60:], hist_n=len(prev))
             cands = [] if v.get("ro") else [f for a in v["ap"]

@@ -94,7 +94,7 @@ def _deal_rows(payload, budget):
             price = h.get("combo_total") or h["total"]
             cf = h.get("combo_flight") or {}
             rows.append(dict(key=h["key"], price=price,
-                             kind="🧩 Πτήση + διαμονή" if h.get("combo_total") else "🏠 Διαμονή",
+                             kind="🧩 Πτήση + ξενοδοχείο" if h.get("combo_total") else "🏨 Ξενοδοχείο",
                              title=f"{h['place']} · {h['results'][0]['name']}",
                              when=f"{h['check_in']} → {h['check_out']} · {h['nights']} νύχτες",
                              who=(f"{cf.get('airline')} από Αθήνα {eur(cf.get('total', 0))} + {h['source']}"

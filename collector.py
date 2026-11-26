@@ -9,8 +9,8 @@
 
 Πηγές:
   * scrapers.py (Playwright): Google Flights (όλες οι υπόλοιπες αεροπορικές) και, για τις
-    εβδομάδες όπου τα αεροπορικά έχουν έκπτωση, Airbnb / Google Hotels στο ίδιο μέρος
-    και τις ίδιες ημερομηνίες.
+    εβδομάδες όπου τα αεροπορικά έχουν έκπτωση, οργανωμένα ξενοδοχεία (Google Hotels, με
+    συνδέσμους κράτησης στο Booking.com) στο ίδιο μέρος και τις ίδιες ημερομηνίες. Όχι Airbnb.
   * RSS (Fly4free): προσφορές με αναχώρηση από Αθήνα.
   * Ryanair fare finder (δημόσιο API): μόνο αν η Ryanair βγει από τις εξαιρούμενες.
 
@@ -576,8 +576,8 @@ def main():
         me = sys.modules[__name__]
         if "--no-scrape" in sys.argv:  # μόνο από τα αποθηκευμένα αποτελέσματα
             gf_flights = scrapers.build_flights(me, con, scrapers.load_cache(con, "gf_cache"))
-            hotels = scrapers.build_stays(me, con, scrapers.load_cache(con, "ab_cache"),
-                                          scrapers.load_cache(con, "gh_cache"), flights + gf_flights)
+            hotels = scrapers.build_stays(me, con, scrapers.load_cache(con, "gh_cache"),
+                                          flights + gf_flights)
         else:
             gf_recs = None
             if "--gf-results" in sys.argv:  # αποτελέσματα πτήσεων από τα παράλληλα τμήματα
