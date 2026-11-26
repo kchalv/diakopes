@@ -357,8 +357,9 @@ def _gh_read(pg):
             name = m.group(2).strip()
             if name not in ratings:
                 # Σε μια παραλλαγή της σελίδας η ετικέτα βαθμολογίας δεν έχει το όνομα: τότε η
-                # βαθμολογία διαβάζεται από το κείμενο της κάρτας («Όνομα / €62 / 4.0 / (4.5K)»).
-                rm = re.search(re.escape(name) + r"\n(?:[^\n]*\n){0,3}?(\d(?:\.\d)?)\n\(([\d.,]+)(K?)\)", body)
+                # βαθμολογία διαβάζεται από το κείμενο της κάρτας («Όνομα / €62 / 4.0 / (4.5K)»· από τους
+                # servers του GitHub γράφει «4.4/5»).
+                rm = re.search(re.escape(name) + r"\n(?:[^\n]*\n){0,3}?(\d(?:\.\d)?)(?:/5)?\n\(([\d.,]+)(K?)\)", body)
                 if rm:
                     cnt = float(rm.group(2).replace(",", "")) * (1000 if rm.group(3) else 1)
                     ratings[name] = (float(rm.group(1)), int(cnt))
