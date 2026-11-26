@@ -692,7 +692,9 @@ def run(c, con, ryanair_flights, gf_recs=None):
         def stale(job):
             p, w, (ci, co), hours = job
             v = cache.get(f"{prefix}|{p['q']}|{ci.isoformat()}|{co.isoformat()}")
-            return not (v and v.get("pax") == sig and c.NOW - v["ts"] < hours * 3600)
+            # αποτελέσματα χωρίς κριτικές (δεν πέρασαν το φίλτρο κριτικών) ξαναψάχνονται αμέσως
+            return not (v and v.get("pax") == sig and c.NOW - v["ts"] < hours * 3600
+                        and any(x.get("reviews") is not None for x in v.get("res") or []))
         targets = [(p, w, rd, 3) for p, w, rd, _f, _why in stay_targets(c, S, gf_flights)]
         return [j for j in targets if stale(j)][:n] + [j for j in prio_jobs if stale(j)]
 
