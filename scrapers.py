@@ -366,6 +366,9 @@ def _gh_read(pg):
     return out, len(cls), [x for x in labels if x.startswith("Prices")][:2]
 
 
+_GH_DIAG = False
+
+
 def _gh_page(br, q, ci, co, adults, ages, stars, by_price, pages=2):
     """Αποτελέσματα μιας αναζήτησης (οι πρώτες `pages` σελίδες):
     {όνομα: (τιμή/νύχτα σε €, αστέρια, βαθμολογία, κριτικές)}.
@@ -396,10 +399,19 @@ def _gh_page(br, q, ci, co, adults, ages, stars, by_price, pages=2):
             err = f"καμία τιμή σε € ({n_cls} ξενοδοχεία, δείγμα: {sample})"
             continue
         # Πού και πού η σελίδα έρχεται χωρίς καμία βαθμολογία/κριτικές: νέα προσπάθεια (στην
-        # τελευταία γίνεται δεκτή όπως είναι, και οι κριτικές παίρνονται από το άλλο δωμάτιο).
-        if attempt < 2 and all(v[2] is None for v in out.values()):
-            err = "σελίδα χωρίς βαθμολογίες"
-            continue
+        # δεύτερη γίνεται δεκτή όπως είναι, και οι κριτικές παίρνονται από το άλλο δωμάτιο· αν δεν
+        # υπάρχουν πουθενά — όπως από τους servers του GitHub — το ξενοδοχείο δεν κόβεται γι' αυτό:
+        # μένουν το φίλτρο βαθμολογίας 4+ του ίδιου του Google, οι λέξεις στο όνομα και η τιμή).
+        if all(v[2] is None for v in out.values()):
+            global _GH_DIAG
+            if not _GH_DIAG:  # μία φορά ανά σάρωση: πώς μοιάζει η κάρτα, για διάγνωση από το log
+                _GH_DIAG = True
+                body, name = pg.inner_text("body"), next(iter(out))
+                i = body.find(name)
+                print(f"  Google Hotels χωρίς βαθμολογίες ({q}): {body[max(i, 0):max(i, 0) + 300]!r}")
+            if attempt < 1:
+                err = "σελίδα χωρίς βαθμολογίες"
+                continue
         for _ in range(pages - 1):  # επόμενες σελίδες αποτελεσμάτων
             try:
                 nxt = pg.locator('button:has-text("Next")').locator("visible=true")
@@ -452,7 +464,7 @@ def scrape_ghotels(br, q, ci, co, family, S=None):
                                      (None, None))
         why = ("δωμάτια" if any(name not in r for r in per_room)
                else "όνομα" if any(w in _plain(name) + " " for w in words)
-               else "κριτικές" if (first[3] or 0) < min_reviews else None)
+               else "κριτικές" if first[3] is not None and first[3] < min_reviews else None)
         if why:
             cut[why] += 1
             continue
